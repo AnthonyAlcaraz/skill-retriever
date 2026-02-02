@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 
-from skill_retriever.entities import ComponentMetadata, ComponentType
+from skill_retriever.entities import ComponentType
 from skill_retriever.nodes.ingestion.crawler import RepositoryCrawler
 from skill_retriever.nodes.ingestion.extractors import (
     Davila7Strategy,
@@ -15,7 +15,6 @@ from skill_retriever.nodes.ingestion.frontmatter import (
     parse_component_file,
 )
 from skill_retriever.nodes.ingestion.git_signals import extract_git_signals
-
 
 # ---------------------------------------------------------------------------
 # Frontmatter tests

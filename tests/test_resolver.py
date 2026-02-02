@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-
-import pytest
+from datetime import UTC, datetime
 
 from skill_retriever.entities import ComponentMetadata, ComponentType
 from skill_retriever.nodes.ingestion.resolver import EntityResolver
@@ -141,8 +139,8 @@ class TestEntityResolver:
         """Merged entity should have union of tags/tools and longest description."""
         resolver = EntityResolver(fuzzy_threshold=80.0)
 
-        earlier = datetime(2024, 1, 1, tzinfo=timezone.utc)
-        later = datetime(2024, 6, 15, tzinfo=timezone.utc)
+        earlier = datetime(2024, 1, 1, tzinfo=UTC)
+        later = datetime(2024, 6, 15, tzinfo=UTC)
 
         entities = [
             _make_entity(
@@ -154,7 +152,7 @@ class TestEntityResolver:
             ),
             _make_entity(
                 "code-reviewer",
-                description="A much longer and more detailed description of the code reviewer component",
+                description="A much longer and more detailed description of the code reviewer",
                 tags=["review", "quality"],
                 tools=["lint", "format"],
                 last_updated=later,
