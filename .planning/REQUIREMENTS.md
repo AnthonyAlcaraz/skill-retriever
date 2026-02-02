@@ -71,28 +71,28 @@ Deferred to future release. Tracked but not in current roadmap.
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| INGS-01 | — | Pending |
-| INGS-02 | — | Pending |
-| INGS-03 | — | Pending |
-| INGS-04 | — | Pending |
-| RETR-01 | — | Pending |
-| RETR-02 | — | Pending |
-| RETR-03 | — | Pending |
-| RETR-04 | — | Pending |
-| GRPH-01 | — | Pending |
-| GRPH-02 | — | Pending |
-| GRPH-03 | — | Pending |
-| GRPH-04 | — | Pending |
-| INTG-01 | — | Pending |
-| INTG-02 | — | Pending |
-| INTG-03 | — | Pending |
-| INTG-04 | — | Pending |
+| INGS-01 | Phase 2 | Pending |
+| INGS-02 | Phase 2 | Pending |
+| INGS-03 | Phase 2 | Pending |
+| INGS-04 | Phase 2 | Pending |
+| RETR-01 | Phase 4 | Pending |
+| RETR-02 | Phase 4 | Pending |
+| RETR-03 | Phase 4 | Pending |
+| RETR-04 | Phase 4 | Pending |
+| GRPH-01 | Phase 3 | Pending |
+| GRPH-02 | Phase 5 | Pending |
+| GRPH-03 | Phase 5 | Pending |
+| GRPH-04 | Phase 5 | Pending |
+| INTG-01 | Phase 6 | Pending |
+| INTG-02 | Phase 6 | Pending |
+| INTG-03 | Phase 6 | Pending |
+| INTG-04 | Phase 6 | Pending |
 
 **Coverage:**
 - v1 requirements: 16 total
-- Mapped to phases: 0
-- Unmapped: 16
+- Mapped to phases: 16
+- Unmapped: 0
 
 ---
 *Requirements defined: 2026-02-02*
-*Last updated: 2026-02-02 after initial definition*
+*Last updated: 2026-02-02 after roadmap creation*
