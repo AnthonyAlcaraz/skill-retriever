@@ -1,1 +1,5 @@
-"""Ingestion nodes for the skill-retriever pipeline."""
+"""Ingestion pipeline: crawl, extract, resolve."""
+
+from skill_retriever.nodes.ingestion.crawler import RepositoryCrawler
+
+__all__ = ["RepositoryCrawler"]
