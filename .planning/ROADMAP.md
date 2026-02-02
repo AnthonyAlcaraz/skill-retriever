@@ -46,12 +46,12 @@ Plans:
   3. Each ingested component has name, type, tags, description, and git health signals (last update, commit frequency) populated
   4. Two-phase entity resolution (fuzzy string + embedding similarity >0.85) prevents duplicate nodes for the same concept
   5. Any component's full definition (description, parameters, usage, dependencies) is retrievable by ID after ingestion
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 02-01: Pydantic entity models (ComponentMetadata, CapabilityEntity, GraphNode, GraphEdge)
-- [ ] 02-02: Repository crawlers and strategy-pattern extractors
-- [ ] 02-03: Entity resolution and deduplication pipeline
+- [ ] 02-01-PLAN.md -- Pydantic entity models (ComponentType, ComponentMetadata, GraphNode, GraphEdge, EdgeType) + new deps
+- [ ] 02-02-PLAN.md -- Repository crawlers, extraction strategies (davila7/flat/generic), frontmatter parser, git signals
+- [ ] 02-03-PLAN.md -- Two-phase entity resolution pipeline (fuzzy + embedding dedup) [TDD]
 
 ### Phase 3: Memory Layer
 **Goal**: Ingested component data persists in graph and vector stores with PPR and similarity search operational
