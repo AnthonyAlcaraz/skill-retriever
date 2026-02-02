@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from pathlib import Path  # noqa: TC003
+from typing import Protocol, runtime_checkable
 
 from skill_retriever.entities import ComponentMetadata, ComponentType
 from skill_retriever.nodes.ingestion.frontmatter import (
@@ -187,7 +187,7 @@ class GenericMarkdownStrategy:
         self.repo_owner = repo_owner
         self.repo_name = repo_name
 
-    def can_handle(self, repo_root: Path) -> bool:  # noqa: ARG002
+    def can_handle(self, repo_root: Path) -> bool:
         return True
 
     def discover(self, repo_root: Path) -> list[Path]:

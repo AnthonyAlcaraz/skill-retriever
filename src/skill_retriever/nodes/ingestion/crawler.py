@@ -3,9 +3,9 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 
-from skill_retriever.entities import ComponentMetadata
+from skill_retriever.entities import ComponentMetadata  # noqa: TC001
 from skill_retriever.nodes.ingestion.extractors import (
     Davila7Strategy,
     FlatDirectoryStrategy,

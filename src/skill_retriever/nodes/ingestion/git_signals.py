@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from pathlib import Path
+from datetime import UTC, datetime
+from pathlib import Path  # noqa: TC003
 from typing import Any
 
 from git import InvalidGitRepositoryError, Repo
@@ -39,7 +39,7 @@ def extract_git_signals(repo_path: Path, file_relative_path: str) -> dict[str, A
     commit_count = len(commits)
 
     # Count commits in the last 30 days
-    now = datetime.now(tz=timezone.utc)
+    now = datetime.now(tz=UTC)
     thirty_days_ago = now.timestamp() - (30 * 24 * 60 * 60)
     recent_commits = sum(
         1 for c in commits if c.committed_date >= thirty_days_ago
