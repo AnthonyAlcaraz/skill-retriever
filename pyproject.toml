@@ -6,7 +6,10 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastembed>=0.7.4",
+    "gitpython>=3.1.44",
     "pydantic>=2.12.5",
+    "python-frontmatter>=1.1",
+    "rapidfuzz>=3.14",
 ]
 
 [dependency-groups]
