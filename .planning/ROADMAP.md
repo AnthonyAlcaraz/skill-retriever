@@ -31,10 +31,10 @@ Decimal phases appear between their surrounding integers in numeric order.
   2. `from skill_retriever import __version__` works from a Python REPL
   3. Ruff and pyright pass with zero warnings on the codebase
   4. Embedding model version is pinned in a config file and loadable at import time
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 01-01: Project scaffolding (pyproject.toml, src layout, dev tools, CI basics)
+- [ ] 01-01-PLAN.md -- Scaffold project, install dependencies, configure dev tools, pin embedding model, verify all success criteria
 
 ### Phase 2: Domain Models & Ingestion
 **Goal**: System can crawl any component repository and produce structured, deduplicated entity data ready for graph and vector storage
