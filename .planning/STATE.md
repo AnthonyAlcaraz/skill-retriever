@@ -5,32 +5,32 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 1: Foundation
+**Current focus:** Phase 1: Foundation — COMPLETE
 
 ## Current Position
 
-Phase: 1 of 7 (Foundation)
-Plan: 0 of 1 in current phase
-Status: Ready to plan
-Last activity: 2026-02-02 -- Roadmap created
+Phase: 1 of 7 (Foundation) — COMPLETE
+Plan: 1 of 1 in current phase — COMPLETE
+Status: Ready to plan Phase 2
+Last activity: 2026-02-02 -- Phase 1 executed (scaffold + tests)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [█░░░░░░░░░] 14%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 0
+- Total plans completed: 1
 - Average duration: -
-- Total execution time: 0 hours
+- Total execution time: -
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
-| - | - | - | - |
+| 01-Foundation | 1/1 | - | - |
 
 **Recent Trend:**
-- Last 5 plans: -
+- Last 5 plans: 01-01 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -58,5 +58,10 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-02
-Stopped at: Roadmap and state initialized
+Stopped at: Phase 1 complete, ready for Phase 2 planning
 Resume file: None
+
+## Commits
+
+- `c419c12` feat(01-01): scaffold project with Iusztin layers, deps, and smoke tests
+- `ce168ec` chore(01-01): add .gitignore, remove cached bytecode
