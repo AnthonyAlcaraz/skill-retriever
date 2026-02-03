@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 4: Retrieval Engine -- Plan 02 complete
+**Current focus:** Phase 4: Retrieval Engine -- COMPLETE
 
 ## Current Position
 
 Phase: 4 of 7 (Retrieval Engine)
-Plan: 2 of 3 in current phase
-Status: In progress
-Last activity: 2026-02-03 -- Plan 04-02 executed (PPR engine + flow pruner)
+Plan: 3 of 3 in current phase
+Status: Phase complete
+Last activity: 2026-02-03 -- Plan 04-03 executed (RRF score fusion + context assembler)
 
-Progress: [████████░░] 85%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
+- Total plans completed: 10
 - Average duration: -
 - Total execution time: -
 
@@ -30,10 +30,10 @@ Progress: [████████░░] 85%
 | 01-Foundation | 1/1 | - | - |
 | 02-Domain Models | 3/3 | - | - |
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
-| 04-Retrieval | 2/3 | ~16min | ~8min |
+| 04-Retrieval | 3/3 | ~24min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: 03-02 ✓, 03-03 ✓, 04-01 ✓, 04-02 ✓
+- Last 5 plans: 03-03 ✓, 04-01 ✓, 04-02 ✓, 04-03 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -63,6 +63,9 @@ Recent decisions affecting current work:
 - [04-02]: Adaptive alpha: 0.9 specific (named entity + narrow), 0.6 broad (>5 seeds), 0.85 default
 - [04-02]: Flow pruning max 8 endpoints, max 10 paths, 0.01 reliability threshold
 - [04-02]: Path reliability = average PPR score of nodes in path
+- [04-03]: RRF k=60 empirically validated default from Elasticsearch/Milvus
+- [04-03]: Type filter post-fusion to preserve semantic ranking
+- [04-03]: TYPE_PRIORITY dict: agents(1) > skills(2) > commands(3) for context assembly
 
 ### Pending Todos
 
@@ -76,7 +79,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 04-02-PLAN.md (PPR engine + flow pruner)
+Stopped at: Completed 04-03-PLAN.md (RRF score fusion + context assembler) -- Phase 4 complete
 Resume file: None
 
 ## Commits
@@ -93,3 +96,5 @@ Resume file: None
 - `b17482f` feat(04-01): query planner and vector search node
 - `19f2de7` feat(04-02): add PPR engine with adaptive alpha
 - `57f6a36` feat(04-02): add flow-based pruning with 40%+ reduction
+- `1524ade` feat(04-03): add RRF score fusion for hybrid retrieval
+- `4e4679f` feat(04-03): add token-budgeted context assembler
