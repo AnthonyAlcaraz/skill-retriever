@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 3: Memory Layer -- Plan 03-03 complete (component memory)
+**Current focus:** Phase 3: Memory Layer -- COMPLETE, ready for Phase 4
 
 ## Current Position
 
 Phase: 3 of 7 (Memory Layer)
-Plan: 3 of 3 in current phase
-Status: In progress (03-02 and 03-03 complete, 03-01 pending)
-Last activity: 2026-02-03 -- Plan 03-02 executed (FAISS vector store)
+Plan: 3 of 3 in current phase -- ALL COMPLETE
+Status: Phase 3 complete, ready for Phase 4 (Retrieval Engine)
+Last activity: 2026-02-03 -- Plan 03-01 executed (graph store with PPR)
 
-Progress: [█████░░░░░] 50%
+Progress: [███████░░░] 70%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 6
+- Total plans completed: 7
 - Average duration: -
 - Total execution time: -
 
@@ -29,10 +29,10 @@ Progress: [█████░░░░░] 50%
 |-------|-------|-------|----------|
 | 01-Foundation | 1/1 | - | - |
 | 02-Domain Models | 3/3 | - | - |
-| 03-Memory Layer | 2/3 | ~9min | ~4.5min |
+| 03-Memory Layer | 3/3 | ~16min | ~5min |
 
 **Recent Trend:**
-- Last 5 plans: 02-03 ✓, 02-02 ✓, 03-03 ✓, 03-02 ✓
+- Last 5 plans: 02-02 ✓, 03-03 ✓, 03-02 ✓, 03-01 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -54,6 +54,8 @@ Recent decisions affecting current work:
 - [03-03]: ComponentMemory uses mutable Pydantic BaseModel for in-place stats mutation
 - [03-02]: IndexFlatIP brute-force over IVF/HNSW — sufficient for <50k vectors
 - [03-02]: pyright ignore comments for faiss-cpu (no type stubs), matching networkx pattern
+- [03-01]: `Any` annotations for NX edge/node iteration; pyright ignores for NX serialization stubs
+- [03-01]: scipy added as runtime dependency — NX 3.6 pagerank delegates to scipy internally
 
 ### Pending Todos
 
@@ -67,7 +69,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 03-02-PLAN.md (FAISS vector store with cosine similarity)
+Stopped at: Completed 03-01-PLAN.md (graph store with Protocol abstraction and PPR) -- Phase 3 fully complete
 Resume file: None
 
 ## Commits
@@ -80,3 +82,4 @@ Resume file: None
 - `1ad9099` test(02-02): 15 ingestion tests with lint/type fixes
 - `67100d6` feat(03-03): component memory with usage tracking and co-selection
 - `4348082` feat(03-02): FAISS vector store with cosine similarity and persistence
+- `f395d72` feat(03-01): graph store with Protocol abstraction and PPR
