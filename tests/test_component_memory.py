@@ -85,7 +85,7 @@ class TestSelectionRate:
         for _ in range(3):
             mem.record_selection(["comp-a"])
 
-        assert mem.get_selection_rate("comp-a") == 0.3  # noqa: PLR2004
+        assert mem.get_selection_rate("comp-a") == 0.3
 
     def test_get_selection_rate_zero_recommendations(self) -> None:
         mem = ComponentMemory()

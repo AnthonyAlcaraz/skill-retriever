@@ -12,7 +12,9 @@ from skill_retriever.entities.graph import EdgeType, GraphEdge, GraphNode
 from skill_retriever.memory.graph_store import GraphStore, NetworkXGraphStore
 
 
-def _make_node(node_id: str, label: str = "", ctype: ComponentType = ComponentType.SKILL) -> GraphNode:
+def _make_node(
+    node_id: str, label: str = "", ctype: ComponentType = ComponentType.SKILL,
+) -> GraphNode:
     """Helper to build a GraphNode with minimal boilerplate."""
     return GraphNode(id=node_id, component_type=ctype, label=label or node_id)
 
