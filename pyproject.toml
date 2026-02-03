@@ -23,6 +23,7 @@ dev = [
     "pytest-cov>=6.0",
     "ruff>=0.14.14",
     "pyright>=1.1.408",
+    "ranx>=0.3.20",
 ]
 
 [project.scripts]
