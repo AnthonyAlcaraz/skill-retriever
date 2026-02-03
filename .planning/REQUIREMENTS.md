@@ -37,29 +37,29 @@ Requirements for initial release. Each maps to roadmap phases.
 
 ## v2 Requirements
 
-Deferred to future release. Tracked but not in current roadmap.
+Partial implementation complete. Some features implemented, others deferred.
 
 ### Auto-Sync
 
-- **SYNC-01**: System watches configured repositories for changes (webhook or polling)
-- **SYNC-02**: System auto-reingests repositories when upstream changes detected
-- **SYNC-03**: Incremental ingestion updates only changed components (not full rebuild)
+- **SYNC-01**: System watches configured repositories for changes (webhook or polling) — *Deferred*
+- **SYNC-02**: System auto-reingests repositories when upstream changes detected — *Deferred*
+- [x] **SYNC-03**: Incremental ingestion updates only changed components (not full rebuild)
 
 ### Advanced Retrieval
 
-- **RETR-05**: Query rewriting/intent clarification for ambiguous queries (LLM-assisted)
-- **RETR-06**: Abstraction level awareness (return command vs agent vs hook based on query complexity and project maturity)
+- **RETR-05**: Query rewriting/intent clarification for ambiguous queries (LLM-assisted) — *Deferred*
+- [x] **RETR-06**: Abstraction level awareness (return command vs agent vs hook based on query complexity and project maturity)
 
 ### Learning
 
-- **LRNG-01**: Track component selection/rejection patterns from usage
-- **LRNG-02**: Feed usage patterns back into ranking (collaborative filtering)
-- **LRNG-03**: Track co-occurrence patterns (components frequently installed together)
+- **LRNG-01**: Track component selection/rejection patterns from usage — *Deferred*
+- **LRNG-02**: Feed usage patterns back into ranking (collaborative filtering) — *Deferred*
+- [x] **LRNG-03**: Track co-occurrence patterns (components frequently installed together)
 
 ### Health
 
-- **HLTH-01**: Surface component maintenance status (active vs abandoned)
-- **HLTH-02**: Flag deprecated components with suggested replacements
+- [x] **HLTH-01**: Surface component maintenance status (active vs abandoned)
+- **HLTH-02**: Flag deprecated components with suggested replacements — *Deferred*
 
 ## Out of Scope
 
@@ -96,10 +96,10 @@ Deferred to future release. Tracked but not in current roadmap.
 | INTG-04 | Phase 6 | Complete |
 
 **Coverage:**
-- v1 requirements: 16 total
-- Mapped to phases: 16
-- Unmapped: 0
+- v1 requirements: 16 total (all complete)
+- v2 requirements implemented: 4 (SYNC-03, RETR-06, LRNG-03, HLTH-01)
+- v2 requirements deferred: 6
 
 ---
 *Requirements defined: 2026-02-02*
-*Last updated: 2026-02-03 after milestone v1 completion*
+*Last updated: 2026-02-03 after v2 partial implementation*
