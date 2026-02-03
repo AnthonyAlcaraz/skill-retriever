@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 4: Retrieval Engine -- COMPLETE
+**Current focus:** Phase 5: Retrieval Orchestrator -- In progress
 
 ## Current Position
 
-Phase: 4 of 7 (Retrieval Engine)
-Plan: 3 of 3 in current phase
-Status: Phase complete
-Last activity: 2026-02-03 -- Plan 04-03 executed (RRF score fusion + context assembler)
+Phase: 5 of 7 (Retrieval Orchestrator)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-03 -- Plan 05-01 executed (RetrievalPipeline with LRU caching)
 
-Progress: [█████████░] 90%
+Progress: [█████████░] 91%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 10
-- Average duration: -
+- Total plans completed: 11
+- Average duration: ~7min
 - Total execution time: -
 
 **By Phase:**
@@ -31,10 +31,11 @@ Progress: [█████████░] 90%
 | 02-Domain Models | 3/3 | - | - |
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
 | 04-Retrieval | 3/3 | ~24min | ~8min |
+| 05-Orchestrator | 1/2 | ~8min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 ✓, 04-01 ✓, 04-02 ✓, 04-03 ✓
-- Trend: -
+- Last 5 plans: 04-01 ✓, 04-02 ✓, 04-03 ✓, 05-01 ✓
+- Trend: Consistent ~8min per plan
 
 *Updated after each plan completion*
 
@@ -66,6 +67,9 @@ Recent decisions affecting current work:
 - [04-03]: RRF k=60 empirically validated default from Elasticsearch/Milvus
 - [04-03]: Type filter post-fusion to preserve semantic ranking
 - [04-03]: TYPE_PRIORITY dict: agents(1) > skills(2) > commands(3) for context assembly
+- [05-01]: LRU cache wraps internal _retrieve_impl for hashable cache keys
+- [05-01]: component_type converted to string for cache key hashability
+- [05-01]: Early exit optimization when high confidence (>0.9) vector results
 
 ### Pending Todos
 
@@ -79,7 +83,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 04-03-PLAN.md (RRF score fusion + context assembler) -- Phase 4 complete
+Stopped at: Completed 05-01-PLAN.md (RetrievalPipeline with LRU caching)
 Resume file: None
 
 ## Commits
@@ -99,3 +103,5 @@ Resume file: None
 - `1524ade` feat(04-03): add RRF score fusion for hybrid retrieval
 - `4e4679f` feat(04-03): add token-budgeted context assembler
 - `9063ffc` chore: remove unused RetrievalPath import in tests
+- `cf7a8d0` feat(05-01): add PipelineResult and ConflictInfo models
+- `268b843` feat(05-01): add RetrievalPipeline coordinator with LRU caching
