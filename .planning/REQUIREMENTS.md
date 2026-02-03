@@ -80,9 +80,9 @@ Deferred to future release. Tracked but not in current roadmap.
 | RETR-03 | Phase 4 | Pending |
 | RETR-04 | Phase 4 | Pending |
 | GRPH-01 | Phase 3 | Pending |
-| GRPH-02 | Phase 5 | Pending |
-| GRPH-03 | Phase 5 | Pending |
-| GRPH-04 | Phase 5 | Pending |
+| GRPH-02 | Phase 5 | Complete |
+| GRPH-03 | Phase 5 | Complete |
+| GRPH-04 | Phase 5 | Complete |
 | INTG-01 | Phase 6 | Pending |
 | INTG-02 | Phase 6 | Pending |
 | INTG-03 | Phase 6 | Pending |
