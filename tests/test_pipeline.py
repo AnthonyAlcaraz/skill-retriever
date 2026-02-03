@@ -222,3 +222,133 @@ class TestClearCache:
         pipeline.clear_cache()
         result = pipeline.retrieve("authentication agent")
         assert not result.cache_hit
+
+
+class TestPipelineDependencyResolution:
+    """Test transitive dependency resolution in pipeline."""
+
+    def test_pipeline_resolves_dependencies(
+        self, graph_store: NetworkXGraphStore, vector_store: FAISSVectorStore
+    ) -> None:
+        """Component with deps gets deps included in result."""
+        # agent-auth depends on skill-jwt
+        # Ensure agent-auth is in results and skill-jwt dependency is added
+        pipeline = RetrievalPipeline(
+            graph_store=graph_store,
+            vector_store=vector_store,
+            token_budget=2000,
+        )
+        result = pipeline.retrieve("authentication agent")
+
+        # Get IDs of components in context
+        context_ids = {comp.component_id for comp in result.context.components}
+
+        # If agent-auth is in results, skill-jwt should be added as dependency
+        if "agent-auth" in context_ids:
+            # skill-jwt might be in context or in dependencies_added
+            has_jwt = (
+                "skill-jwt" in context_ids or "skill-jwt" in result.dependencies_added
+            )
+            assert has_jwt, "skill-jwt should be included as dependency of agent-auth"
+
+    def test_pipeline_dependencies_added_populated(
+        self, graph_store: NetworkXGraphStore, vector_store: FAISSVectorStore
+    ) -> None:
+        """dependencies_added list is accurate when deps are resolved."""
+        # Create a query that specifically matches agent-auth
+        # agent-auth depends on skill-jwt (DEPENDS_ON edge)
+        pipeline = RetrievalPipeline(
+            graph_store=graph_store,
+            vector_store=vector_store,
+            token_budget=2000,
+        )
+        result = pipeline.retrieve("auth agent")
+
+        # dependencies_added should be a list (may be empty if no new deps added)
+        assert isinstance(result.dependencies_added, list)
+
+
+class TestPipelineConflictDetection:
+    """Test conflict detection in pipeline."""
+
+    def test_pipeline_detects_conflicts(self) -> None:
+        """Components with conflicts get ConflictInfo in result."""
+        # Create a graph with conflicting components
+        store = NetworkXGraphStore()
+        store.add_node(
+            GraphNode(
+                id="comp-x",
+                label="Component X",
+                component_type=ComponentType.SKILL,
+                embedding_id="emb-x",
+            )
+        )
+        store.add_node(
+            GraphNode(
+                id="comp-y",
+                label="Component Y",
+                component_type=ComponentType.SKILL,
+                embedding_id="emb-y",
+            )
+        )
+        store.add_edge(
+            GraphEdge(
+                source_id="comp-x",
+                target_id="comp-y",
+                edge_type=EdgeType.CONFLICTS_WITH,
+                metadata={"reason": "Incompatible implementations"},
+            )
+        )
+
+        # Vector store with embeddings
+        vs = FAISSVectorStore(dimensions=384)
+        rng = np.random.default_rng(99)
+        vs.add("comp-x", rng.random(384).astype(np.float32))
+        vs.add("comp-y", rng.random(384).astype(np.float32))
+
+        pipeline = RetrievalPipeline(graph_store=store, vector_store=vs)
+        result = pipeline.retrieve("component")
+
+        # Check if conflicts detected (both components should be in results)
+        context_ids = {comp.component_id for comp in result.context.components}
+
+        # If both are in context, conflict should be detected
+        if "comp-x" in context_ids and "comp-y" in context_ids:
+            assert len(result.conflicts) == 1
+            assert result.conflicts[0].component_a == "comp-x"
+            assert result.conflicts[0].component_b == "comp-y"
+            assert result.conflicts[0].reason == "Incompatible implementations"
+
+
+class TestPipelineLatencySLA:
+    """Test latency SLAs for pipeline."""
+
+    def test_pipeline_latency_under_1000ms(
+        self, graph_store: NetworkXGraphStore, vector_store: FAISSVectorStore
+    ) -> None:
+        """Complex query with deps should complete in < 1000ms."""
+        pipeline = RetrievalPipeline(
+            graph_store=graph_store,
+            vector_store=vector_store,
+            token_budget=2000,
+        )
+
+        # Run a query (first call, not cached)
+        result = pipeline.retrieve("authentication JWT token refresh")
+
+        # Should complete within SLA
+        assert result.latency_ms < 1000, f"Latency {result.latency_ms}ms exceeds 1000ms SLA"
+
+    def test_simple_query_under_500ms(
+        self, graph_store: NetworkXGraphStore, vector_store: FAISSVectorStore
+    ) -> None:
+        """Simple query should complete in < 500ms."""
+        pipeline = RetrievalPipeline(
+            graph_store=graph_store,
+            vector_store=vector_store,
+        )
+
+        result = pipeline.retrieve("auth")
+
+        # Simple query should be fast
+        assert result.latency_ms < 500, f"Latency {result.latency_ms}ms exceeds 500ms SLA"

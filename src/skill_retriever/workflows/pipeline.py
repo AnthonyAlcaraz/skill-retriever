@@ -4,10 +4,15 @@ from __future__ import annotations
 
 import functools
 import time
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-from skill_retriever.nodes.retrieval.context_assembler import assemble_context
+from skill_retriever.nodes.retrieval.context_assembler import (
+    RetrievalContext,
+    assemble_context,
+)
 from skill_retriever.nodes.retrieval.flow_pruner import flow_based_pruning
+from skill_retriever.nodes.retrieval.models import RankedComponent
 from skill_retriever.nodes.retrieval.ppr_engine import run_ppr_retrieval
 from skill_retriever.nodes.retrieval.query_planner import (
     extract_query_entities,
@@ -15,17 +20,33 @@ from skill_retriever.nodes.retrieval.query_planner import (
 )
 from skill_retriever.nodes.retrieval.score_fusion import fuse_retrieval_results
 from skill_retriever.nodes.retrieval.vector_search import search_with_type_filter
-from skill_retriever.workflows.models import PipelineResult
+from skill_retriever.workflows.dependency_resolver import (
+    detect_conflicts,
+    resolve_transitive_dependencies,
+)
+from skill_retriever.workflows.models import ConflictInfo, PipelineResult
 
 if TYPE_CHECKING:
     from skill_retriever.entities.components import ComponentType
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
-    from skill_retriever.nodes.retrieval.context_assembler import RetrievalContext
+
+
+# Minimum score for dependencies added via transitive resolution
+DEPENDENCY_MIN_SCORE = 0.1
 
 HIGH_CONFIDENCE_THRESHOLD = 0.9
 DEFAULT_CACHE_SIZE = 128
 DEFAULT_TOKEN_BUDGET = 2000
+
+
+@dataclass(frozen=True)
+class _CachedResult:
+    """Internal cached result containing context and resolution metadata."""
+
+    context: RetrievalContext
+    dependencies_added: tuple[str, ...]
+    conflicts: tuple[ConflictInfo, ...]
 
 
 class RetrievalPipeline:
@@ -70,7 +91,7 @@ class RetrievalPipeline:
         query: str,
         component_type_str: str | None,
         top_k: int,
-    ) -> RetrievalContext:
+    ) -> _CachedResult:
         """Internal implementation of retrieval (cacheable).
 
         Args:
@@ -79,7 +100,7 @@ class RetrievalPipeline:
             top_k: Maximum number of results.
 
         Returns:
-            RetrievalContext with assembled components.
+            _CachedResult with context, dependencies_added, and conflicts.
         """
         # Convert type string back to enum if provided
         component_type: ComponentType | None = None
@@ -142,14 +163,42 @@ class RetrievalPipeline:
             top_k=top_k,
         )
 
-        # Stage 5: Context assembly with token budget
+        # Stage 5a: Resolve transitive dependencies BEFORE context assembly
+        fused_ids = [comp.component_id for comp in fused_results]
+        all_component_ids, dependencies_added = resolve_transitive_dependencies(
+            fused_ids, self._graph_store
+        )
+
+        # Stage 5b: Detect conflicts among all components (fused + deps)
+        conflicts = detect_conflicts(all_component_ids, self._graph_store)
+
+        # Stage 5c: Add dependency components to results for context assembly
+        # Dependencies get a minimum score so they appear in context
+        expanded_results = list(fused_results)
+        next_rank = len(fused_results) + 1
+        for dep_id in dependencies_added:
+            expanded_results.append(
+                RankedComponent(
+                    component_id=dep_id,
+                    score=DEPENDENCY_MIN_SCORE,
+                    rank=next_rank,
+                    source="dependency",
+                )
+            )
+            next_rank += 1
+
+        # Stage 6: Context assembly with token budget
         context = assemble_context(
-            fused_results,
+            expanded_results,
             self._graph_store,
             token_budget=self._token_budget,
         )
 
-        return context
+        return _CachedResult(
+            context=context,
+            dependencies_added=tuple(dependencies_added),
+            conflicts=tuple(conflicts),
+        )
 
     def retrieve(
         self,
@@ -175,7 +224,7 @@ class RetrievalPipeline:
 
         # Time the retrieval
         start = time.perf_counter()
-        context = self._retrieve_cached(query, type_str, top_k)
+        cached_result = self._retrieve_cached(query, type_str, top_k)
         end = time.perf_counter()
 
         # Check cache info after call
@@ -190,11 +239,10 @@ class RetrievalPipeline:
 
         latency_ms = (end - start) * 1000
 
-        # Conflicts and dependencies populated in Plan 02
         return PipelineResult(
-            context=context,
-            conflicts=[],  # Plan 02
-            dependencies_added=[],  # Plan 02
+            context=cached_result.context,
+            conflicts=list(cached_result.conflicts),
+            dependencies_added=list(cached_result.dependencies_added),
             latency_ms=latency_ms,
             cache_hit=cache_hit,
         )
