@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 5: Retrieval Orchestrator -- In progress
+**Current focus:** Phase 5: Retrieval Orchestrator -- Complete
 
 ## Current Position
 
-Phase: 5 of 7 (Retrieval Orchestrator)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-03 -- Plan 05-01 executed (RetrievalPipeline with LRU caching)
+Phase: 5 of 7 (Retrieval Orchestrator) -- COMPLETE
+Plan: 2 of 2 in current phase
+Status: Phase complete
+Last activity: 2026-02-03 -- Plan 05-02 executed (Dependency resolver and conflict detection)
 
-Progress: [█████████░] 91%
+Progress: [██████████] 100% (Phase 5)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 11
+- Total plans completed: 12
 - Average duration: ~7min
 - Total execution time: -
 
@@ -31,10 +31,10 @@ Progress: [█████████░] 91%
 | 02-Domain Models | 3/3 | - | - |
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
 | 04-Retrieval | 3/3 | ~24min | ~8min |
-| 05-Orchestrator | 1/2 | ~8min | ~8min |
+| 05-Orchestrator | 2/2 | ~16min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: 04-01 ✓, 04-02 ✓, 04-03 ✓, 05-01 ✓
+- Last 5 plans: 04-02 ✓, 04-03 ✓, 05-01 ✓, 05-02 ✓
 - Trend: Consistent ~8min per plan
 
 *Updated after each plan completion*
@@ -70,6 +70,10 @@ Recent decisions affecting current work:
 - [05-01]: LRU cache wraps internal _retrieve_impl for hashable cache keys
 - [05-01]: component_type converted to string for cache key hashability
 - [05-01]: Early exit optimization when high confidence (>0.9) vector results
+- [05-02]: Dependencies resolved BEFORE context assembly so token budget includes deps
+- [05-02]: Dependencies added as RankedComponent with source='dependency' and min score 0.1
+- [05-02]: frozenset{a,b} for bidirectional conflict deduplication
+- [05-02]: Edge-type subgraph filtering before nx.descendants() traversal
 
 ### Pending Todos
 
@@ -83,7 +87,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 05-01-PLAN.md (RetrievalPipeline with LRU caching)
+Stopped at: Completed 05-02-PLAN.md (Dependency resolver and conflict detection)
 Resume file: None
 
 ## Commits
@@ -105,3 +109,5 @@ Resume file: None
 - `9063ffc` chore: remove unused RetrievalPath import in tests
 - `cf7a8d0` feat(05-01): add PipelineResult and ConflictInfo models
 - `268b843` feat(05-01): add RetrievalPipeline coordinator with LRU caching
+- `8ef79f5` feat(05-02): add dependency resolver with transitive closure
+- `76e666a` feat(05-02): integrate dependency resolver into pipeline
