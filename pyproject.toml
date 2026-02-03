@@ -13,6 +13,7 @@ dependencies = [
     "scipy>=1.15",
     "faiss-cpu>=1.13.2",
     "rapidfuzz>=3.14",
+    "fastmcp>=2.14,<3",
 ]
 
 [dependency-groups]
