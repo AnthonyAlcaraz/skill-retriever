@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 6: MCP Server -- In Progress
+**Current focus:** Phase 6: MCP Server -- COMPLETE
 
 ## Current Position
 
-Phase: 6 of 7 (MCP Server)
-Plan: 1 of 2 in current phase
-Status: In progress
-Last activity: 2026-02-03 -- Plan 06-01 executed (MCP server foundation)
+Phase: 6 of 7 (MCP Server) -- COMPLETE
+Plan: 2 of 2 in current phase -- COMPLETE
+Status: Phase 6 complete, ready for Phase 7
+Last activity: 2026-02-03 -- Plan 06-02 executed (Component installation)
 
-Progress: [████████████░░] 86% (13/15 plans)
+Progress: [██████████████░] 93% (14/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 13
-- Average duration: ~8min
+- Total plans completed: 14
+- Average duration: ~9min
 - Total execution time: -
 
 **By Phase:**
@@ -32,11 +32,11 @@ Progress: [████████████░░] 86% (13/15 plans)
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
 | 04-Retrieval | 3/3 | ~24min | ~8min |
 | 05-Orchestrator | 2/2 | ~16min | ~8min |
-| 06-MCP Server | 1/2 | ~12min | ~12min |
+| 06-MCP Server | 2/2 | ~30min | ~15min |
 
 **Recent Trend:**
-- Last 5 plans: 04-03 ✓, 05-01 ✓, 05-02 ✓, 06-01 ✓
-- Trend: Consistent ~8-12min per plan
+- Last 5 plans: 05-01 ✓, 05-02 ✓, 06-01 ✓, 06-02 ✓
+- Trend: Consistent ~8-18min per plan
 
 *Updated after each plan completion*
 
@@ -77,7 +77,10 @@ Recent decisions affecting current work:
 - [05-02]: Edge-type subgraph filtering before nx.descendants() traversal
 - [06-01]: fastmcp v2 pinned (<3) to avoid breaking changes from v3 beta
 - [06-01]: Lazy pipeline initialization with asyncio.Lock for thread safety
-- [06-01]: install_components stubbed - deferred to Plan 02
+- [06-02]: INSTALL_PATHS maps all 7 ComponentTypes to .claude/ subdirectories
+- [06-02]: Settings use deep_merge (nested dicts recurse, lists extend with dedupe)
+- [06-02]: Conflicts block installation entirely (fail-fast)
+- [06-02]: MetadataStore persists to JSON in temp directory (configurable later)
 
 ### Pending Todos
 
@@ -91,7 +94,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 06-01-PLAN.md (MCP server foundation)
+Stopped at: Completed 06-02-PLAN.md (Component installation)
 Resume file: None
 
 ## Commits
@@ -118,3 +121,5 @@ Resume file: None
 - `be2a595` feat(06-01): add FastMCP dependency and Pydantic schemas
 - `c1c6da5` feat(06-01): add rationale generator from graph paths
 - `f69049b` feat(06-01): add FastMCP server with 5 tool handlers
+- `4a50be3` feat(06-02): add MetadataStore for component metadata lookup
+- `33d57c9` feat(06-02): add component installer with dependency resolution
