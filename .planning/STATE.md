@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 6: MCP Server -- COMPLETE
+**Current focus:** Phase 7: Integration Validation -- IN PROGRESS
 
 ## Current Position
 
-Phase: 6 of 7 (MCP Server) -- COMPLETE
-Plan: 2 of 2 in current phase -- COMPLETE
-Status: Phase 6 complete, ready for Phase 7
-Last activity: 2026-02-03 -- Plan 06-02 executed (Component installation)
+Phase: 7 of 7 (Integration Validation)
+Plan: 1 of 3 in current phase -- COMPLETE
+Status: In progress
+Last activity: 2026-02-03 -- Plan 07-01 executed (Validation infrastructure)
 
-Progress: [██████████████░] 93% (14/15 plans)
+Progress: [███████████████] 100% (15/15 plans)
 
 ## Performance Metrics
 
@@ -35,7 +35,7 @@ Progress: [██████████████░] 93% (14/15 plans)
 | 06-MCP Server | 2/2 | ~30min | ~15min |
 
 **Recent Trend:**
-- Last 5 plans: 05-01 ✓, 05-02 ✓, 06-01 ✓, 06-02 ✓
+- Last 5 plans: 05-02 ✓, 06-01 ✓, 06-02 ✓, 07-01 ✓
 - Trend: Consistent ~8-18min per plan
 
 *Updated after each plan completion*
@@ -81,6 +81,9 @@ Recent decisions affecting current work:
 - [06-02]: Settings use deep_merge (nested dicts recurse, lists extend with dedupe)
 - [06-02]: Conflicts block installation entirely (fail-fast)
 - [06-02]: MetadataStore persists to JSON in temp directory (configurable later)
+- [07-01]: ranx library for MRR evaluation (standard IR metrics)
+- [07-01]: Deterministic embeddings via np.random.default_rng(42) for reproducible tests
+- [07-01]: 12 validation pairs across 5 categories (auth, dev, content, infra, multi)
 
 ### Pending Todos
 
@@ -94,7 +97,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 06-02-PLAN.md (Component installation)
+Stopped at: Completed 07-01-PLAN.md (Validation infrastructure)
 Resume file: None
 
 ## Commits
@@ -123,3 +126,6 @@ Resume file: None
 - `f69049b` feat(06-01): add FastMCP server with 5 tool handlers
 - `4a50be3` feat(06-02): add MetadataStore for component metadata lookup
 - `33d57c9` feat(06-02): add component installer with dependency resolution
+- `33b75f2` chore(07-01): add ranx dependency and validation test directory
+- `fbbfc7e` feat(07-01): add seed data and validation pairs fixtures
+- `f47355d` feat(07-01): add conftest.py with seeded_pipeline fixture
