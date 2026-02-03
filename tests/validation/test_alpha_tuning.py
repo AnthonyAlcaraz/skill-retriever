@@ -268,3 +268,69 @@ class TestAlphaGridSearch:
         assert k60_mrr >= best_mrr * 0.90, (
             f"k=60 MRR {k60_mrr:.4f} more than 10% below best {best_mrr:.4f}"
         )
+
+
+class TestTuningDocumentation:
+    """Generate and save tuning results for documentation."""
+
+    def test_save_tuning_results(
+        self,
+        seeded_pipeline,
+        validation_pairs,
+        validation_qrels,
+    ) -> None:
+        """Run full grid search and save results for documentation."""
+        from datetime import date
+
+        results = {
+            "alpha_results": {},
+            "rrf_k_results": {},
+            "optimal_ranges": {},
+            "metadata": {
+                "validation_pairs_count": len(validation_pairs),
+                "test_date": str(date.today()),
+            }
+        }
+
+        # Alpha grid search
+        alpha_values = [0.5, 0.6, 0.7, 0.8, 0.85, 0.9, 0.95]
+        for alpha in alpha_values:
+            mrr = run_with_alpha(seeded_pipeline, validation_pairs, validation_qrels, alpha)
+            results["alpha_results"][str(alpha)] = round(mrr, 4)
+
+        # Find optimal range
+        best_alpha_key = max(results["alpha_results"].items(), key=lambda x: x[1])
+        best_mrr = best_alpha_key[1]
+        optimal_alphas = [
+            a for a, m in results["alpha_results"].items()
+            if m >= best_mrr * 0.95  # Within 5% of best
+        ]
+        results["optimal_ranges"]["alpha"] = {
+            "best": float(best_alpha_key[0]),
+            "best_mrr": best_mrr,
+            "near_optimal": [float(a) for a in optimal_alphas],
+        }
+
+        # RRF k sensitivity
+        for k in [30, 60, 100]:
+            mrr = run_with_rrf_k(seeded_pipeline, validation_pairs, validation_qrels, k)
+            results["rrf_k_results"][str(k)] = round(mrr, 4)
+
+        # Find optimal RRF k
+        best_k_key = max(results["rrf_k_results"].items(), key=lambda x: x[1])
+        results["optimal_ranges"]["rrf_k"] = {
+            "best": int(best_k_key[0]),
+            "best_mrr": best_k_key[1],
+        }
+
+        # Save results
+        output_path = Path(__file__).parent / "fixtures" / "tuning_results.json"
+        output_path.write_text(json.dumps(results, indent=2))
+
+        print(f"\nTuning results saved to {output_path}")
+        print(json.dumps(results, indent=2))
+
+        # Assertions for test pass
+        assert len(results["alpha_results"]) == 7
+        assert len(results["rrf_k_results"]) == 3
+        assert output_path.exists()
