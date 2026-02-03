@@ -6,6 +6,7 @@ from skill_retriever.memory.component_memory import (
     CoSelectionEntry,
 )
 from skill_retriever.memory.graph_store import GraphStore, NetworkXGraphStore
+from skill_retriever.memory.metadata_store import MetadataStore
 from skill_retriever.memory.vector_store import FAISSVectorStore
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "ComponentUsageStats",
     "FAISSVectorStore",
     "GraphStore",
+    "MetadataStore",
     "NetworkXGraphStore",
 ]
