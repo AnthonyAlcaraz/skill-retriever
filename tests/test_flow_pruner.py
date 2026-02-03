@@ -8,7 +8,6 @@ from skill_retriever.entities.components import ComponentType
 from skill_retriever.entities.graph import EdgeType, GraphEdge, GraphNode
 from skill_retriever.memory.graph_store import NetworkXGraphStore
 from skill_retriever.nodes.retrieval.flow_pruner import (
-    RetrievalPath,
     compute_path_reliability,
     find_paths_between,
     flow_based_pruning,
