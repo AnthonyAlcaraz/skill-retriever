@@ -1,0 +1,141 @@
+{
+  "components": [
+    {
+      "id": "skill-jwt",
+      "name": "JWT Authentication Skill",
+      "type": "skill",
+      "description": "Handles JWT token generation and validation for secure authentication. Supports access tokens and refresh token rotation.",
+      "tags": ["auth", "jwt", "security", "token"],
+      "embedding_text": "JWT authentication token security login validation"
+    },
+    {
+      "id": "agent-auth",
+      "name": "Authentication Agent",
+      "type": "agent",
+      "description": "Full authentication agent with login, logout, and session management. Coordinates JWT generation and OAuth flows.",
+      "tags": ["auth", "login", "session", "agent"],
+      "embedding_text": "authentication login logout session agent user management"
+    },
+    {
+      "id": "skill-oauth",
+      "name": "OAuth2 Provider Skill",
+      "type": "skill",
+      "description": "OAuth2 authorization code flow implementation for third-party authentication providers like Google and GitHub.",
+      "tags": ["auth", "oauth", "oauth2", "provider"],
+      "embedding_text": "OAuth2 authorization third-party authentication provider"
+    },
+    {
+      "id": "skill-refresh",
+      "name": "Token Refresh Skill",
+      "type": "skill",
+      "description": "Handles refresh token rotation and automatic access token renewal before expiration.",
+      "tags": ["auth", "refresh", "token", "rotation"],
+      "embedding_text": "refresh token rotation renewal automatic expiration"
+    },
+    {
+      "id": "skill-git",
+      "name": "Git Operations Skill",
+      "type": "skill",
+      "description": "Git version control operations including commit, push, pull, branch management, and merge conflict resolution.",
+      "tags": ["git", "version-control", "commit", "branch"],
+      "embedding_text": "git version control commit push pull branch merge"
+    },
+    {
+      "id": "agent-github",
+      "name": "GitHub Integration Agent",
+      "type": "agent",
+      "description": "Full GitHub workflow agent handling PRs, issues, code review, and repository management via GitHub API.",
+      "tags": ["github", "pr", "issues", "code-review"],
+      "embedding_text": "GitHub pull request issues code review repository API"
+    },
+    {
+      "id": "skill-debug",
+      "name": "Debugging Skill",
+      "type": "skill",
+      "description": "Systematic debugging utilities including breakpoint management, stack trace analysis, and variable inspection.",
+      "tags": ["debug", "breakpoint", "trace", "inspection"],
+      "embedding_text": "debugging breakpoint stack trace variable inspection error"
+    },
+    {
+      "id": "skill-linkedin",
+      "name": "LinkedIn Content Skill",
+      "type": "skill",
+      "description": "LinkedIn post creation and formatting for professional social media content. Handles hashtags and mentions.",
+      "tags": ["linkedin", "social", "content", "posts"],
+      "embedding_text": "LinkedIn post content social media professional writing"
+    },
+    {
+      "id": "agent-writer",
+      "name": "Content Writer Agent",
+      "type": "agent",
+      "description": "Multi-platform content creation agent coordinating blog posts, social media, and documentation writing.",
+      "tags": ["writing", "content", "blog", "documentation"],
+      "embedding_text": "content writer blog social media documentation creation"
+    },
+    {
+      "id": "skill-mcp",
+      "name": "MCP Server Skill",
+      "type": "skill",
+      "description": "Model Context Protocol server implementation for tool-based AI interactions. Handles tool registration and invocation.",
+      "tags": ["mcp", "server", "tools", "protocol"],
+      "embedding_text": "MCP Model Context Protocol server tools AI"
+    },
+    {
+      "id": "setting-theme",
+      "name": "Theme Settings",
+      "type": "setting",
+      "description": "User interface theme configuration including dark mode, color schemes, and font preferences.",
+      "tags": ["theme", "ui", "dark-mode", "preferences"],
+      "embedding_text": "theme settings dark mode color scheme UI preferences"
+    },
+    {
+      "id": "skill-test",
+      "name": "Testing Framework Skill",
+      "type": "skill",
+      "description": "Unit and integration testing utilities with test runner, assertions, and coverage reporting.",
+      "tags": ["test", "testing", "unit", "coverage"],
+      "embedding_text": "testing unit integration test runner coverage assertions"
+    },
+    {
+      "id": "command-deploy",
+      "name": "Deploy Command",
+      "type": "command",
+      "description": "Deployment automation command for CI/CD pipelines. Supports Docker, Kubernetes, and cloud platforms.",
+      "tags": ["deploy", "ci-cd", "docker", "kubernetes"],
+      "embedding_text": "deploy deployment CI/CD Docker Kubernetes cloud automation"
+    },
+    {
+      "id": "skill-db",
+      "name": "Database Operations Skill",
+      "type": "skill",
+      "description": "Database CRUD operations with query building, migrations, and connection pooling for SQL databases.",
+      "tags": ["database", "sql", "crud", "migrations"],
+      "embedding_text": "database SQL CRUD query migrations connection"
+    },
+    {
+      "id": "agent-api",
+      "name": "API Development Agent",
+      "type": "agent",
+      "description": "REST API development agent with endpoint creation, validation, and OpenAPI documentation generation.",
+      "tags": ["api", "rest", "openapi", "endpoints"],
+      "embedding_text": "API REST endpoint development OpenAPI documentation"
+    }
+  ],
+  "edges": [
+    {"source": "agent-auth", "target": "skill-jwt", "type": "DEPENDS_ON"},
+    {"source": "agent-auth", "target": "skill-oauth", "type": "DEPENDS_ON"},
+    {"source": "skill-refresh", "target": "skill-jwt", "type": "ENHANCES"},
+    {"source": "agent-github", "target": "skill-git", "type": "DEPENDS_ON"},
+    {"source": "agent-writer", "target": "skill-linkedin", "type": "DEPENDS_ON"},
+    {"source": "skill-linkedin", "target": "skill-oauth", "type": "DEPENDS_ON"},
+    {"source": "skill-jwt", "target": "skill-oauth", "type": "BUNDLES_WITH"},
+    {"source": "agent-api", "target": "skill-db", "type": "DEPENDS_ON"},
+    {"source": "command-deploy", "target": "skill-git", "type": "DEPENDS_ON"},
+    {"source": "skill-test", "target": "skill-debug", "type": "ENHANCES"}
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-02-03",
+    "description": "Seed data for validation tests with deterministic component set"
+  }
+}

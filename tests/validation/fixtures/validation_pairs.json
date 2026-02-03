@@ -1,0 +1,82 @@
+{
+  "pairs": [
+    {
+      "query_id": "auth_01",
+      "query": "I need to authenticate users with JWT tokens",
+      "expected": {"skill-jwt": 1, "agent-auth": 1},
+      "category": "authentication"
+    },
+    {
+      "query_id": "auth_02",
+      "query": "How do I implement OAuth2 login with Google?",
+      "expected": {"skill-oauth": 1, "agent-auth": 1},
+      "category": "authentication"
+    },
+    {
+      "query_id": "auth_03",
+      "query": "Handle refresh token rotation for session management",
+      "expected": {"skill-refresh": 1, "skill-jwt": 1},
+      "category": "authentication"
+    },
+    {
+      "query_id": "dev_01",
+      "query": "Help me with git commit and branch operations",
+      "expected": {"skill-git": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "dev_02",
+      "query": "Create a pull request and manage code review on GitHub",
+      "expected": {"agent-github": 1, "skill-git": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "dev_03",
+      "query": "Debug this error with breakpoints and stack traces",
+      "expected": {"skill-debug": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "content_01",
+      "query": "Write a LinkedIn post about AI development",
+      "expected": {"skill-linkedin": 1, "agent-writer": 1},
+      "category": "content"
+    },
+    {
+      "query_id": "infra_01",
+      "query": "Set up an MCP server for tool integration",
+      "expected": {"skill-mcp": 1},
+      "category": "infrastructure"
+    },
+    {
+      "query_id": "multi_01",
+      "query": "Build a complete authentication system with JWT and OAuth",
+      "expected": {"skill-jwt": 1, "skill-oauth": 1, "agent-auth": 1},
+      "category": "multi-component"
+    },
+    {
+      "query_id": "multi_02",
+      "query": "Deploy code to production with automated testing",
+      "expected": {"command-deploy": 1, "skill-test": 1, "skill-git": 1},
+      "category": "multi-component"
+    },
+    {
+      "query_id": "dev_04",
+      "query": "Write and run unit tests with coverage",
+      "expected": {"skill-test": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "infra_02",
+      "query": "Configure database connections and run migrations",
+      "expected": {"skill-db": 1},
+      "category": "infrastructure"
+    }
+  ],
+  "metadata": {
+    "version": "1.0",
+    "created": "2026-02-03",
+    "categories": ["authentication", "development", "content", "infrastructure", "multi-component"],
+    "description": "Validation pairs for MRR evaluation of retrieval quality"
+  }
+}
