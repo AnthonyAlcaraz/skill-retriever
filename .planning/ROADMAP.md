@@ -63,12 +63,12 @@ Plans:
   3. PPR computation from a seed node returns ranked nodes within 200ms for a 1300-node graph
   4. Component memory tracks recommendation/selection counts and co-selection patterns (DeepAgent-style)
   5. Graph store abstraction layer allows swapping NetworkX backend without changing calling code
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 03-01: Graph store (NetworkX wrapper, PPR via scikit-network, abstraction interface)
-- [ ] 03-02: Vector store (FAISS index management, FastEmbed integration)
-- [ ] 03-03: Component memory (usage tracking, co-selection patterns)
+- [ ] 03-01-PLAN.md -- Graph store (NetworkX wrapper, PPR via built-in pagerank, Protocol abstraction)
+- [ ] 03-02-PLAN.md -- Vector store (FAISS IndexFlatIP with ID mapping, cosine similarity search)
+- [ ] 03-03-PLAN.md -- Component memory (usage tracking, co-selection patterns, JSON persistence)
 
 ### Phase 4: Retrieval Nodes
 **Goal**: Individual retrieval strategies (vector, graph, pattern) each return relevant components independently
