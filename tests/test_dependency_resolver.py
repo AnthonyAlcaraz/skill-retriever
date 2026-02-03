@@ -11,7 +11,6 @@ from skill_retriever.workflows.dependency_resolver import (
     detect_conflicts,
     resolve_transitive_dependencies,
 )
-from skill_retriever.workflows.models import ConflictInfo
 
 
 @pytest.fixture
@@ -149,7 +148,7 @@ class TestResolveTransitiveDependencies:
         self, graph_store: NetworkXGraphStore
     ) -> None:
         """Mix of valid and invalid components."""
-        all_ids, newly_added = resolve_transitive_dependencies(
+        all_ids, _newly_added = resolve_transitive_dependencies(
             ["comp-a", "nonexistent"], graph_store
         )
         # comp-a's deps (B, C) added, nonexistent passed through
@@ -302,7 +301,7 @@ class TestCycleHandling:
         )
 
         # Should complete without hanging (nx.descendants handles cycles)
-        all_ids, newly_added = resolve_transitive_dependencies(
+        all_ids, _newly_added = resolve_transitive_dependencies(
             ["cycle-a"], store
         )
         # Both nodes should be in result

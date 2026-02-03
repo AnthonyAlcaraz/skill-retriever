@@ -31,6 +31,7 @@ from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
 
 if TYPE_CHECKING:
     from skill_retriever.memory.graph_store import GraphStore
+    from skill_retriever.memory.metadata_store import MetadataStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
     from skill_retriever.workflows.pipeline import RetrievalPipeline
 
@@ -49,16 +50,22 @@ mcp = FastMCP("skill-retriever")
 _pipeline: RetrievalPipeline | None = None
 _graph_store: GraphStore | None = None
 _vector_store: FAISSVectorStore | None = None
+_metadata_store: MetadataStore | None = None
 _init_lock = asyncio.Lock()
 
 
 async def get_pipeline() -> RetrievalPipeline:
     """Get or initialize the retrieval pipeline."""
-    global _pipeline, _graph_store, _vector_store
+    global _pipeline, _graph_store, _vector_store, _metadata_store
 
     async with _init_lock:
         if _pipeline is None:
+            from pathlib import Path
+
             from skill_retriever.memory.graph_store import NetworkXGraphStore
+            from skill_retriever.memory.metadata_store import (
+                MetadataStore as MetaStore,
+            )
             from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
             from skill_retriever.workflows.pipeline import RetrievalPipeline
 
@@ -66,6 +73,10 @@ async def get_pipeline() -> RetrievalPipeline:
             _graph_store = NetworkXGraphStore()
             _vector_store = VectorStore()
             _pipeline = RetrievalPipeline(_graph_store, _vector_store)
+
+            # Initialize metadata store in temp location (future: configurable)
+            metadata_path = Path(tempfile.gettempdir()) / "skill-retriever-metadata.json"
+            _metadata_store = MetaStore(metadata_path)
             logger.info("Pipeline initialized")
 
         return _pipeline
@@ -83,6 +94,13 @@ async def get_vector_store() -> FAISSVectorStore:
     await get_pipeline()  # Ensures stores are initialized
     assert _vector_store is not None
     return _vector_store
+
+
+async def get_metadata_store() -> MetadataStore:
+    """Get the metadata store, initializing if needed."""
+    await get_pipeline()  # Ensures stores are initialized
+    assert _metadata_store is not None
+    return _metadata_store
 
 
 @mcp.tool
@@ -191,11 +209,31 @@ async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
 @mcp.tool
 async def install_components(input: InstallInput) -> InstallResult:
     """Install components to .claude/."""
-    # Installation deferred to Plan 02
+    from pathlib import Path
+
+    from skill_retriever.mcp.installer import ComponentInstaller
+
+    graph_store = await get_graph_store()
+    metadata_store = await get_metadata_store()
+
+    # Determine target directory
+    target_dir = Path(input.target_dir).resolve()
+
+    installer = ComponentInstaller(
+        graph_store=graph_store,
+        metadata_store=metadata_store,
+        target_dir=target_dir,
+    )
+
+    report = installer.install(
+        component_ids=input.component_ids,
+        auto_resolve_deps=True,
+    )
+
     return InstallResult(
-        installed=[],
-        skipped=[],
-        errors=["Installation not yet implemented"],
+        installed=[r.component_id for r in report.installed if r.success],
+        skipped=report.skipped,
+        errors=report.errors,
     )
 
 
@@ -264,6 +302,7 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
     """Index a component repository."""
     graph_store = await get_graph_store()
     vector_store = await get_vector_store()
+    metadata_store = await get_metadata_store()
 
     errors: list[str] = []
 
@@ -339,10 +378,16 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 if embeddings:
                     vector_store.add(comp.id, embeddings[0])  # pyright: ignore[reportUnknownArgumentType]
 
+                # Store component metadata for installation lookup
+                metadata_store.add(comp)
+
                 indexed_count += 1
             except Exception as e:
                 errors.append(f"Failed to index {comp.id}: {e}")
                 logger.exception("Failed to index component %s", comp.id)
+
+        # Persist metadata store after all components indexed
+        metadata_store.save()
 
     return IngestResult(
         components_found=len(components),

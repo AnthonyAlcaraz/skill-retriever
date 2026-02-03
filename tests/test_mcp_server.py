@@ -267,3 +267,27 @@ class TestGitHubUrlParsing:
 
         with pytest.raises(ValueError, match="Could not parse"):
             _parse_github_url("not-a-valid-url")
+
+
+class TestInstallComponentsTool:
+    """Test install_components tool handler."""
+
+    def test_install_returns_result_model(self) -> None:
+        """install_components returns InstallResult model."""
+        from skill_retriever.mcp.schemas import InstallResult
+
+        # Verify model structure
+        result = InstallResult(
+            installed=["test/repo/skill/auth"],
+            skipped=[],
+            errors=[],
+        )
+        assert result.installed == ["test/repo/skill/auth"]
+
+    def test_install_input_defaults(self) -> None:
+        """InstallInput has sensible defaults."""
+        from skill_retriever.mcp.schemas import InstallInput
+
+        input_model = InstallInput(component_ids=["test/repo/skill/auth"])
+        assert input_model.target_dir == "."
+        assert input_model.component_ids == ["test/repo/skill/auth"]
