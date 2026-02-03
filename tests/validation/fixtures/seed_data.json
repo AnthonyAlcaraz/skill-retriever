@@ -6,7 +6,12 @@
       "type": "skill",
       "description": "Handles JWT token generation and validation for secure authentication. Supports access tokens and refresh token rotation.",
       "tags": ["auth", "jwt", "security", "token"],
-      "embedding_text": "JWT authentication token security login validation"
+      "embedding_text": "JWT authentication token security login validation",
+      "git_signals": {
+        "last_updated": "2026-01-15",
+        "commit_count": 42,
+        "health": "active"
+      }
     },
     {
       "id": "agent-auth",
@@ -14,7 +19,12 @@
       "type": "agent",
       "description": "Full authentication agent with login, logout, and session management. Coordinates JWT generation and OAuth flows.",
       "tags": ["auth", "login", "session", "agent"],
-      "embedding_text": "authentication login logout session agent user management"
+      "embedding_text": "authentication login logout session agent user management",
+      "git_signals": {
+        "last_updated": "2026-01-20",
+        "commit_count": 38,
+        "health": "active"
+      }
     },
     {
       "id": "skill-oauth",
@@ -22,7 +32,12 @@
       "type": "skill",
       "description": "OAuth2 authorization code flow implementation for third-party authentication providers like Google and GitHub.",
       "tags": ["auth", "oauth", "oauth2", "provider"],
-      "embedding_text": "OAuth2 authorization third-party authentication provider"
+      "embedding_text": "OAuth2 authorization third-party authentication provider",
+      "git_signals": {
+        "last_updated": "2026-01-18",
+        "commit_count": 29,
+        "health": "active"
+      }
     },
     {
       "id": "skill-refresh",
@@ -30,7 +45,38 @@
       "type": "skill",
       "description": "Handles refresh token rotation and automatic access token renewal before expiration.",
       "tags": ["auth", "refresh", "token", "rotation"],
-      "embedding_text": "refresh token rotation renewal automatic expiration"
+      "embedding_text": "refresh token rotation renewal automatic expiration",
+      "git_signals": {
+        "last_updated": "2026-01-16",
+        "commit_count": 15,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-session",
+      "name": "Session Management Skill",
+      "type": "skill",
+      "description": "Cookie-based session management with secure cookie handling and session storage.",
+      "tags": ["auth", "session", "cookie", "management"],
+      "embedding_text": "session cookie management authentication secure storage",
+      "git_signals": {
+        "last_updated": "2026-01-10",
+        "commit_count": 22,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-apikey",
+      "name": "API Key Validation Skill",
+      "type": "skill",
+      "description": "API key generation and validation for third-party service authentication.",
+      "tags": ["auth", "apikey", "validation", "third-party"],
+      "embedding_text": "API key validation third-party service authentication",
+      "git_signals": {
+        "last_updated": "2026-01-12",
+        "commit_count": 18,
+        "health": "active"
+      }
     },
     {
       "id": "skill-git",
@@ -38,7 +84,12 @@
       "type": "skill",
       "description": "Git version control operations including commit, push, pull, branch management, and merge conflict resolution.",
       "tags": ["git", "version-control", "commit", "branch"],
-      "embedding_text": "git version control commit push pull branch merge"
+      "embedding_text": "git version control commit push pull branch merge",
+      "git_signals": {
+        "last_updated": "2026-01-22",
+        "commit_count": 156,
+        "health": "active"
+      }
     },
     {
       "id": "agent-github",
@@ -46,7 +97,12 @@
       "type": "agent",
       "description": "Full GitHub workflow agent handling PRs, issues, code review, and repository management via GitHub API.",
       "tags": ["github", "pr", "issues", "code-review"],
-      "embedding_text": "GitHub pull request issues code review repository API"
+      "embedding_text": "GitHub pull request issues code review repository API",
+      "git_signals": {
+        "last_updated": "2026-01-19",
+        "commit_count": 67,
+        "health": "active"
+      }
     },
     {
       "id": "skill-debug",
@@ -54,39 +110,12 @@
       "type": "skill",
       "description": "Systematic debugging utilities including breakpoint management, stack trace analysis, and variable inspection.",
       "tags": ["debug", "breakpoint", "trace", "inspection"],
-      "embedding_text": "debugging breakpoint stack trace variable inspection error"
-    },
-    {
-      "id": "skill-linkedin",
-      "name": "LinkedIn Content Skill",
-      "type": "skill",
-      "description": "LinkedIn post creation and formatting for professional social media content. Handles hashtags and mentions.",
-      "tags": ["linkedin", "social", "content", "posts"],
-      "embedding_text": "LinkedIn post content social media professional writing"
-    },
-    {
-      "id": "agent-writer",
-      "name": "Content Writer Agent",
-      "type": "agent",
-      "description": "Multi-platform content creation agent coordinating blog posts, social media, and documentation writing.",
-      "tags": ["writing", "content", "blog", "documentation"],
-      "embedding_text": "content writer blog social media documentation creation"
-    },
-    {
-      "id": "skill-mcp",
-      "name": "MCP Server Skill",
-      "type": "skill",
-      "description": "Model Context Protocol server implementation for tool-based AI interactions. Handles tool registration and invocation.",
-      "tags": ["mcp", "server", "tools", "protocol"],
-      "embedding_text": "MCP Model Context Protocol server tools AI"
-    },
-    {
-      "id": "setting-theme",
-      "name": "Theme Settings",
-      "type": "setting",
-      "description": "User interface theme configuration including dark mode, color schemes, and font preferences.",
-      "tags": ["theme", "ui", "dark-mode", "preferences"],
-      "embedding_text": "theme settings dark mode color scheme UI preferences"
+      "embedding_text": "debugging breakpoint stack trace variable inspection error",
+      "git_signals": {
+        "last_updated": "2026-01-14",
+        "commit_count": 45,
+        "health": "active"
+      }
     },
     {
       "id": "skill-test",
@@ -94,15 +123,168 @@
       "type": "skill",
       "description": "Unit and integration testing utilities with test runner, assertions, and coverage reporting.",
       "tags": ["test", "testing", "unit", "coverage"],
-      "embedding_text": "testing unit integration test runner coverage assertions"
+      "embedding_text": "testing unit integration test runner coverage assertions",
+      "git_signals": {
+        "last_updated": "2026-01-21",
+        "commit_count": 89,
+        "health": "active"
+      }
     },
     {
-      "id": "command-deploy",
-      "name": "Deploy Command",
-      "type": "command",
-      "description": "Deployment automation command for CI/CD pipelines. Supports Docker, Kubernetes, and cloud platforms.",
-      "tags": ["deploy", "ci-cd", "docker", "kubernetes"],
-      "embedding_text": "deploy deployment CI/CD Docker Kubernetes cloud automation"
+      "id": "agent-ci",
+      "name": "CI/CD Agent",
+      "type": "agent",
+      "description": "Continuous integration and deployment automation with pipeline management and build orchestration.",
+      "tags": ["ci", "cd", "pipeline", "automation"],
+      "embedding_text": "CI/CD continuous integration deployment pipeline automation build",
+      "git_signals": {
+        "last_updated": "2026-01-17",
+        "commit_count": 52,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-review",
+      "name": "Code Review Skill",
+      "type": "skill",
+      "description": "Automated code review with style checking, best practices enforcement, and suggestion generation.",
+      "tags": ["review", "code-quality", "analysis", "suggestions"],
+      "embedding_text": "code review quality analysis best practices suggestions improvements",
+      "git_signals": {
+        "last_updated": "2026-01-13",
+        "commit_count": 31,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-linkedin",
+      "name": "LinkedIn Content Skill",
+      "type": "skill",
+      "description": "LinkedIn post creation and formatting for professional social media content. Handles hashtags and mentions.",
+      "tags": ["linkedin", "social", "content", "posts"],
+      "embedding_text": "LinkedIn post content social media professional writing",
+      "git_signals": {
+        "last_updated": "2025-12-28",
+        "commit_count": 24,
+        "health": "active"
+      }
+    },
+    {
+      "id": "agent-writer",
+      "name": "Content Writer Agent",
+      "type": "agent",
+      "description": "Multi-platform content creation agent coordinating blog posts, social media, and documentation writing.",
+      "tags": ["writing", "content", "blog", "documentation"],
+      "embedding_text": "content writer blog social media documentation creation",
+      "git_signals": {
+        "last_updated": "2026-01-05",
+        "commit_count": 61,
+        "health": "active"
+      }
+    },
+    {
+      "id": "agent-medium",
+      "name": "Medium Publisher Agent",
+      "type": "agent",
+      "description": "Medium article creation and publishing with formatting, tags, and publication management.",
+      "tags": ["medium", "publishing", "articles", "blog"],
+      "embedding_text": "Medium article publishing blog technical writing content",
+      "git_signals": {
+        "last_updated": "2025-12-30",
+        "commit_count": 18,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-posts",
+      "name": "Social Posts Skill",
+      "type": "skill",
+      "description": "Multi-platform social media post generation and formatting for LinkedIn, Twitter, and other platforms.",
+      "tags": ["social", "posts", "content", "multi-platform"],
+      "embedding_text": "social media posts content generation multi-platform formatting",
+      "git_signals": {
+        "last_updated": "2026-01-02",
+        "commit_count": 27,
+        "health": "active"
+      }
+    },
+    {
+      "id": "agent-research",
+      "name": "Research Agent",
+      "type": "agent",
+      "description": "Deep research analysis agent for topic exploration, competitor analysis, and market research.",
+      "tags": ["research", "analysis", "exploration", "investigation"],
+      "embedding_text": "research analysis investigation topic exploration deep dive",
+      "git_signals": {
+        "last_updated": "2026-01-08",
+        "commit_count": 44,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-analysis",
+      "name": "Data Analysis Skill",
+      "type": "skill",
+      "description": "Data analysis utilities for trend identification, pattern recognition, and insight extraction.",
+      "tags": ["analysis", "data", "trends", "insights"],
+      "embedding_text": "data analysis trends patterns insights statistics extraction",
+      "git_signals": {
+        "last_updated": "2026-01-11",
+        "commit_count": 36,
+        "health": "active"
+      }
+    },
+    {
+      "id": "agent-z1",
+      "name": "Z1 Deep Analysis Agent",
+      "type": "agent",
+      "description": "Deep analysis agent using Z1 methodology for comprehensive topic research and insight generation.",
+      "tags": ["z1", "analysis", "research", "insights"],
+      "embedding_text": "Z1 deep analysis research insights methodology comprehensive",
+      "git_signals": {
+        "last_updated": "2026-01-09",
+        "commit_count": 78,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-competitor",
+      "name": "Competitor Analysis Skill",
+      "type": "skill",
+      "description": "Competitor analysis for market positioning, feature comparison, and strategic insights.",
+      "tags": ["competitor", "analysis", "market", "positioning"],
+      "embedding_text": "competitor analysis market positioning comparison strategy",
+      "git_signals": {
+        "last_updated": "2026-01-06",
+        "commit_count": 19,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-dataproc",
+      "name": "Data Processing Skill",
+      "type": "skill",
+      "description": "Large-scale data processing with ETL pipelines, batch processing, and data transformation.",
+      "tags": ["data", "processing", "etl", "batch"],
+      "embedding_text": "data processing ETL batch transformation pipeline large-scale",
+      "git_signals": {
+        "last_updated": "2026-01-04",
+        "commit_count": 41,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-mcp",
+      "name": "MCP Server Skill",
+      "type": "skill",
+      "description": "Model Context Protocol server implementation for tool-based AI interactions. Handles tool registration and invocation.",
+      "tags": ["mcp", "server", "tools", "protocol"],
+      "embedding_text": "MCP Model Context Protocol server tools AI",
+      "git_signals": {
+        "last_updated": "2026-01-23",
+        "commit_count": 33,
+        "health": "active"
+      }
     },
     {
       "id": "skill-db",
@@ -110,7 +292,51 @@
       "type": "skill",
       "description": "Database CRUD operations with query building, migrations, and connection pooling for SQL databases.",
       "tags": ["database", "sql", "crud", "migrations"],
-      "embedding_text": "database SQL CRUD query migrations connection"
+      "embedding_text": "database SQL CRUD query migrations connection",
+      "git_signals": {
+        "last_updated": "2026-01-07",
+        "commit_count": 56,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-hooks",
+      "name": "Git Hooks Skill",
+      "type": "skill",
+      "description": "Git hooks configuration for pre-commit validation, linting, and automated checks.",
+      "tags": ["git", "hooks", "validation", "automation"],
+      "embedding_text": "git hooks pre-commit validation linting automation checks",
+      "git_signals": {
+        "last_updated": "2026-01-03",
+        "commit_count": 12,
+        "health": "active"
+      }
+    },
+    {
+      "id": "skill-sandbox",
+      "name": "Sandbox Environment Skill",
+      "type": "skill",
+      "description": "Sandbox environment configuration for isolated testing and development with resource limits.",
+      "tags": ["sandbox", "testing", "isolation", "environment"],
+      "embedding_text": "sandbox environment testing isolation development resource limits",
+      "git_signals": {
+        "last_updated": "2025-12-25",
+        "commit_count": 8,
+        "health": "stable"
+      }
+    },
+    {
+      "id": "command-deploy",
+      "name": "Deploy Command",
+      "type": "command",
+      "description": "Deployment automation command for CI/CD pipelines. Supports Docker, Kubernetes, and cloud platforms.",
+      "tags": ["deploy", "ci-cd", "docker", "kubernetes"],
+      "embedding_text": "deploy deployment CI/CD Docker Kubernetes cloud automation",
+      "git_signals": {
+        "last_updated": "2026-01-01",
+        "commit_count": 47,
+        "health": "active"
+      }
     },
     {
       "id": "agent-api",
@@ -118,24 +344,56 @@
       "type": "agent",
       "description": "REST API development agent with endpoint creation, validation, and OpenAPI documentation generation.",
       "tags": ["api", "rest", "openapi", "endpoints"],
-      "embedding_text": "API REST endpoint development OpenAPI documentation"
+      "embedding_text": "API REST endpoint development OpenAPI documentation",
+      "git_signals": {
+        "last_updated": "2026-01-15",
+        "commit_count": 72,
+        "health": "active"
+      }
+    },
+    {
+      "id": "setting-theme",
+      "name": "Theme Settings",
+      "type": "setting",
+      "description": "User interface theme configuration including dark mode, color schemes, and font preferences.",
+      "tags": ["theme", "ui", "dark-mode", "preferences"],
+      "embedding_text": "theme settings dark mode color scheme UI preferences",
+      "git_signals": {
+        "last_updated": "2025-12-20",
+        "commit_count": 5,
+        "health": "stable"
+      }
     }
   ],
   "edges": [
     {"source": "agent-auth", "target": "skill-jwt", "type": "DEPENDS_ON"},
     {"source": "agent-auth", "target": "skill-oauth", "type": "DEPENDS_ON"},
+    {"source": "agent-auth", "target": "skill-session", "type": "DEPENDS_ON"},
     {"source": "skill-refresh", "target": "skill-jwt", "type": "ENHANCES"},
     {"source": "agent-github", "target": "skill-git", "type": "DEPENDS_ON"},
     {"source": "agent-writer", "target": "skill-linkedin", "type": "DEPENDS_ON"},
+    {"source": "agent-writer", "target": "skill-posts", "type": "DEPENDS_ON"},
+    {"source": "agent-medium", "target": "agent-writer", "type": "DEPENDS_ON"},
     {"source": "skill-linkedin", "target": "skill-oauth", "type": "DEPENDS_ON"},
     {"source": "skill-jwt", "target": "skill-oauth", "type": "BUNDLES_WITH"},
     {"source": "agent-api", "target": "skill-db", "type": "DEPENDS_ON"},
     {"source": "command-deploy", "target": "skill-git", "type": "DEPENDS_ON"},
-    {"source": "skill-test", "target": "skill-debug", "type": "ENHANCES"}
+    {"source": "skill-test", "target": "skill-debug", "type": "ENHANCES"},
+    {"source": "agent-ci", "target": "skill-test", "type": "DEPENDS_ON"},
+    {"source": "agent-ci", "target": "skill-hooks", "type": "DEPENDS_ON"},
+    {"source": "agent-ci", "target": "command-deploy", "type": "ENHANCES"},
+    {"source": "skill-hooks", "target": "skill-git", "type": "DEPENDS_ON"},
+    {"source": "agent-research", "target": "skill-analysis", "type": "DEPENDS_ON"},
+    {"source": "agent-research", "target": "skill-competitor", "type": "ENHANCES"},
+    {"source": "agent-z1", "target": "skill-analysis", "type": "DEPENDS_ON"},
+    {"source": "agent-z1", "target": "skill-dataproc", "type": "DEPENDS_ON"},
+    {"source": "skill-jwt", "target": "skill-apikey", "type": "CONFLICTS_WITH"},
+    {"source": "skill-session", "target": "skill-jwt", "type": "CONFLICTS_WITH"}
   ],
   "metadata": {
-    "version": "1.0",
+    "version": "2.0",
     "created": "2026-02-03",
-    "description": "Seed data for validation tests with deterministic component set"
+    "updated": "2026-02-03",
+    "description": "Expanded seed data with 28 components and 23 edges for comprehensive validation testing"
   }
 }

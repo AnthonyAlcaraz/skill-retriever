@@ -19,6 +19,18 @@
       "category": "authentication"
     },
     {
+      "query_id": "auth_04",
+      "query": "Manage user sessions with cookie-based authentication",
+      "expected": {"skill-session": 1, "agent-auth": 1},
+      "category": "authentication"
+    },
+    {
+      "query_id": "auth_05",
+      "query": "Implement API key validation for third-party services",
+      "expected": {"skill-apikey": 1},
+      "category": "authentication"
+    },
+    {
       "query_id": "dev_01",
       "query": "Help me with git commit and branch operations",
       "expected": {"skill-git": 1},
@@ -37,15 +49,93 @@
       "category": "development"
     },
     {
+      "query_id": "dev_04",
+      "query": "Write and run unit tests with coverage",
+      "expected": {"skill-test": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "dev_05",
+      "query": "Set up CI/CD pipeline with automated tests",
+      "expected": {"agent-ci": 1, "skill-test": 1},
+      "category": "development"
+    },
+    {
+      "query_id": "dev_06",
+      "query": "Review code changes and suggest improvements",
+      "expected": {"skill-review": 1},
+      "category": "development"
+    },
+    {
       "query_id": "content_01",
       "query": "Write a LinkedIn post about AI development",
       "expected": {"skill-linkedin": 1, "agent-writer": 1},
       "category": "content"
     },
     {
+      "query_id": "content_02",
+      "query": "Create a Medium article on technical topics",
+      "expected": {"agent-medium": 1, "agent-writer": 1},
+      "category": "content"
+    },
+    {
+      "query_id": "content_03",
+      "query": "Generate social media posts for multiple platforms",
+      "expected": {"skill-posts": 1, "agent-writer": 1},
+      "category": "content"
+    },
+    {
+      "query_id": "content_04",
+      "query": "Perform deep research analysis on a topic",
+      "expected": {"agent-research": 1, "skill-analysis": 1},
+      "category": "content"
+    },
+    {
+      "query_id": "analysis_01",
+      "query": "Analyze data trends and extract insights",
+      "expected": {"agent-z1": 1, "skill-analysis": 1},
+      "category": "analysis"
+    },
+    {
+      "query_id": "analysis_02",
+      "query": "Research competitor analysis for market positioning",
+      "expected": {"agent-research": 1, "skill-competitor": 1},
+      "category": "analysis"
+    },
+    {
+      "query_id": "analysis_03",
+      "query": "Process and analyze large datasets",
+      "expected": {"skill-dataproc": 1, "skill-analysis": 1},
+      "category": "analysis"
+    },
+    {
+      "query_id": "analysis_04",
+      "query": "Generate insights from LinkedIn engagement data",
+      "expected": {"agent-z1": 1, "skill-linkedin": 1},
+      "category": "analysis"
+    },
+    {
       "query_id": "infra_01",
       "query": "Set up an MCP server for tool integration",
       "expected": {"skill-mcp": 1},
+      "category": "infrastructure"
+    },
+    {
+      "query_id": "infra_02",
+      "query": "Configure database connections and run migrations",
+      "expected": {"skill-db": 1},
+      "category": "infrastructure"
+    },
+    {
+      "query_id": "infra_03",
+      "query": "Set up git hooks for pre-commit validation",
+      "expected": {"skill-hooks": 1, "skill-git": 1},
+      "category": "infrastructure"
+    },
+    {
+      "query_id": "infra_04",
+      "query": "Configure sandbox environment for testing",
+      "expected": {"skill-sandbox": 1},
       "category": "infrastructure"
     },
     {
@@ -61,22 +151,50 @@
       "category": "multi-component"
     },
     {
-      "query_id": "dev_04",
-      "query": "Write and run unit tests with coverage",
-      "expected": {"skill-test": 1},
-      "category": "development"
+      "query_id": "multi_03",
+      "query": "Create a complete content workflow with research and publishing",
+      "expected": {"agent-research": 1, "agent-writer": 1, "skill-posts": 1},
+      "category": "multi-component"
     },
     {
-      "query_id": "infra_02",
-      "query": "Configure database connections and run migrations",
-      "expected": {"skill-db": 1},
-      "category": "infrastructure"
+      "query_id": "multi_04",
+      "query": "Build API with database and testing infrastructure",
+      "expected": {"agent-api": 1, "skill-db": 1, "skill-test": 1},
+      "category": "multi-component"
+    },
+    {
+      "query_id": "multi_05",
+      "query": "Set up full CI/CD pipeline with git hooks and deployment",
+      "expected": {"agent-ci": 1, "skill-hooks": 1, "command-deploy": 1},
+      "category": "multi-component"
+    },
+    {
+      "query_id": "negative_01",
+      "query": "I only want skills, no agents or commands",
+      "expected": {"skill-jwt": 1, "skill-git": 1},
+      "category": "negative",
+      "type_filter": "skill"
+    },
+    {
+      "query_id": "negative_02",
+      "query": "Show me only agent components",
+      "expected": {"agent-auth": 1, "agent-github": 1},
+      "category": "negative",
+      "type_filter": "agent"
+    },
+    {
+      "query_id": "negative_03",
+      "query": "Find commands only, exclude everything else",
+      "expected": {"command-deploy": 1},
+      "category": "negative",
+      "type_filter": "command"
     }
   ],
   "metadata": {
-    "version": "1.0",
+    "version": "2.0",
     "created": "2026-02-03",
-    "categories": ["authentication", "development", "content", "infrastructure", "multi-component"],
-    "description": "Validation pairs for MRR evaluation of retrieval quality"
+    "updated": "2026-02-03",
+    "categories": ["authentication", "development", "content", "analysis", "infrastructure", "multi-component", "negative"],
+    "description": "Expanded validation pairs (31 total) for comprehensive MRR evaluation"
   }
 }
