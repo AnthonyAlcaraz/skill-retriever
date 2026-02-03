@@ -17,7 +17,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 3: Memory Layer** - Graph store, vector store, and component memory subsystems
 - [x] **Phase 4: Retrieval Nodes** - PPR engine, vector search, flow pruning, and score fusion
 - [x] **Phase 5: Retrieval Orchestrator** - Pipeline coordination, dependency resolution, conflict detection
-- [ ] **Phase 6: MCP Server & Installation** - FastMCP tools, component installation, rationale generation
+- [x] **Phase 6: MCP Server & Installation** - FastMCP tools, component installation, rationale generation
 - [ ] **Phase 7: Integration & Validation** - End-to-end wiring, hyperparameter tuning, evaluation harness
 
 ## Phase Details
@@ -115,8 +115,8 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md -- FastMCP server with tool definitions, Pydantic schemas, and rationale generator
-- [ ] 06-02-PLAN.md -- Installation engine with .claude/ directory mapping and settings merge
+- [x] 06-01-PLAN.md -- FastMCP server with tool definitions, Pydantic schemas, and rationale generator
+- [x] 06-02-PLAN.md -- Installation engine with .claude/ directory mapping and settings merge
 
 ### Phase 7: Integration & Validation
 **Goal**: End-to-end system is tuned, validated against known-good component sets, and ready for daily use
@@ -127,12 +127,12 @@ Plans:
   2. Hybrid retrieval (vector + graph) outperforms vector-only and graph-only baselines on the validation set
   3. PPR alpha grid search results are documented and the chosen values produce stable rankings
   4. MCP server starts in under 3 seconds and handles 10 sequential queries without degradation
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 07-01: Validation harness and evaluation metrics
-- [ ] 07-02: Hyperparameter tuning (PPR alpha, fusion weights, token budgets)
-- [ ] 07-03: End-to-end smoke tests and performance benchmarks
+- [ ] 07-01-PLAN.md -- Validation harness with 30+ query-component pairs and MRR evaluation using ranx
+- [ ] 07-02-PLAN.md -- Hyperparameter tuning (PPR alpha grid search, RRF k validation)
+- [ ] 07-03-PLAN.md -- Performance benchmarks and MCP integration tests
 
 ## Progress
 
@@ -146,5 +146,5 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 3. Memory Layer | 3/3 | Complete | 2026-02-03 |
 | 4. Retrieval Nodes | 3/3 | Complete | 2026-02-03 |
 | 5. Retrieval Orchestrator | 2/2 | Complete | 2026-02-03 |
-| 6. MCP Server & Installation | 0/2 | Not started | - |
+| 6. MCP Server & Installation | 2/2 | Complete | 2026-02-03 |
 | 7. Integration & Validation | 0/3 | Not started | - |
