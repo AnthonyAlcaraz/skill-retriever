@@ -31,3 +31,6 @@ class PipelineResult:
     dependencies_added: list[str]
     latency_ms: float
     cache_hit: bool
+    # RETR-06: Abstraction level awareness
+    abstraction_level: str = "medium"
+    suggested_types: list[str] | None = None

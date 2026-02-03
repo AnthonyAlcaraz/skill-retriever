@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 
 from pydantic import BaseModel
@@ -16,6 +16,18 @@ class QueryComplexity(StrEnum):
     COMPLEX = "complex"
 
 
+class AbstractionLevel(StrEnum):
+    """Component abstraction level for RETR-06 awareness.
+
+    Higher abstraction = broader scope, more autonomous (agents, MCPs).
+    Lower abstraction = specific actions, direct control (commands, hooks).
+    """
+
+    HIGH = "high"  # agents, mcps - autonomous, broad scope
+    MEDIUM = "medium"  # skills - reusable capabilities
+    LOW = "low"  # commands, hooks, settings, sandbox - specific actions
+
+
 @dataclass
 class RetrievalPlan:
     """Execution plan for a retrieval query based on complexity analysis."""
@@ -25,6 +37,9 @@ class RetrievalPlan:
     use_flow_pruning: bool
     ppr_alpha: float
     max_results: int
+    # RETR-06: Suggested component types based on abstraction level awareness
+    abstraction_level: AbstractionLevel = AbstractionLevel.MEDIUM
+    suggested_types: "list[str]" = field(default_factory=lambda: [])
 
 
 class RankedComponent(BaseModel):

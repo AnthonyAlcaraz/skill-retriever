@@ -40,11 +40,20 @@ class IngestInput(BaseModel):
     """Input for ingest_repo tool."""
 
     repo_url: str = Field(description="GitHub repository URL")
+    incremental: bool = Field(default=True, description="Skip unchanged files")
 
 
 # ---------------------------------------------------------------------------
 # Output models
 # ---------------------------------------------------------------------------
+
+
+class HealthStatus(BaseModel):
+    """Component health indicators based on git signals."""
+
+    status: str = Field(description="active, stale, or abandoned")
+    last_updated: str | None = Field(default=None, description="ISO date of last commit")
+    commit_frequency: str = Field(default="unknown", description="high, medium, low, or unknown")
 
 
 class ComponentRecommendation(BaseModel):
@@ -56,6 +65,7 @@ class ComponentRecommendation(BaseModel):
     score: float
     rationale: str
     token_cost: int
+    health: HealthStatus | None = Field(default=None, description="Component health status")
 
 
 class SearchResult(BaseModel):
@@ -64,6 +74,9 @@ class SearchResult(BaseModel):
     components: list[ComponentRecommendation]
     total_tokens: int
     conflicts: list[str]
+    # RETR-06: Abstraction level awareness
+    abstraction_level: str = Field(default="medium", description="high, medium, or low")
+    suggested_types: list[str] = Field(default_factory=list, description="Suggested component types")
 
 
 class ComponentDetail(BaseModel):
@@ -100,4 +113,5 @@ class IngestResult(BaseModel):
 
     components_found: int
     components_indexed: int
+    components_skipped: int = Field(default=0, description="Unchanged components skipped")
     errors: list[str]

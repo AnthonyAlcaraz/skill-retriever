@@ -20,6 +20,7 @@ from skill_retriever.mcp.schemas import (
     ComponentRecommendation,
     DependencyCheckInput,
     DependencyCheckResult,
+    HealthStatus,
     IngestInput,
     IngestResult,
     InstallInput,
@@ -27,9 +28,11 @@ from skill_retriever.mcp.schemas import (
     SearchInput,
     SearchResult,
 )
+from skill_retriever.memory.component_memory import ComponentMemory
 from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
 
 if TYPE_CHECKING:
+    from skill_retriever.entities.components import ComponentMetadata
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.metadata_store import MetadataStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
@@ -51,17 +54,19 @@ _pipeline: RetrievalPipeline | None = None
 _graph_store: GraphStore | None = None
 _vector_store: FAISSVectorStore | None = None
 _metadata_store: MetadataStore | None = None
+_component_memory: ComponentMemory | None = None
 _init_lock = asyncio.Lock()
+
+# Path for component memory persistence
+_COMPONENT_MEMORY_PATH = Path(tempfile.gettempdir()) / "skill-retriever-memory.json"
 
 
 async def get_pipeline() -> RetrievalPipeline:
     """Get or initialize the retrieval pipeline."""
-    global _pipeline, _graph_store, _vector_store, _metadata_store
+    global _pipeline, _graph_store, _vector_store, _metadata_store, _component_memory
 
     async with _init_lock:
         if _pipeline is None:
-            from pathlib import Path
-
             from skill_retriever.memory.graph_store import NetworkXGraphStore
             from skill_retriever.memory.metadata_store import (
                 MetadataStore as MetaStore,
@@ -77,6 +82,9 @@ async def get_pipeline() -> RetrievalPipeline:
             # Initialize metadata store in temp location (future: configurable)
             metadata_path = Path(tempfile.gettempdir()) / "skill-retriever-metadata.json"
             _metadata_store = MetaStore(metadata_path)
+
+            # Initialize component memory for usage tracking (LRNG-03)
+            _component_memory = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
             logger.info("Pipeline initialized")
 
         return _pipeline
@@ -103,11 +111,58 @@ async def get_metadata_store() -> MetadataStore:
     return _metadata_store
 
 
+async def get_component_memory() -> ComponentMemory:
+    """Get the component memory for usage tracking."""
+    await get_pipeline()  # Ensures stores are initialized
+    assert _component_memory is not None
+    return _component_memory
+
+
+def _compute_health_status(metadata: "ComponentMetadata") -> HealthStatus:
+    """Compute health status from component git signals (HLTH-01)."""
+    from datetime import UTC, datetime, timedelta
+
+    # Determine status based on last_updated
+    status = "unknown"
+    last_updated_str = None
+
+    if metadata.last_updated:
+        last_updated_str = metadata.last_updated.isoformat()
+        now = datetime.now(tz=UTC)
+        age = now - metadata.last_updated
+
+        if age < timedelta(days=90):
+            status = "active"
+        elif age < timedelta(days=365):
+            status = "stale"
+        else:
+            status = "abandoned"
+
+    # Determine commit frequency category
+    freq = metadata.commit_frequency_30d
+    if freq >= 1.0:  # Daily or more
+        freq_str = "high"
+    elif freq >= 0.25:  # Weekly
+        freq_str = "medium"
+    elif freq > 0:
+        freq_str = "low"
+    else:
+        freq_str = "unknown"
+
+    return HealthStatus(
+        status=status,
+        last_updated=last_updated_str,
+        commit_frequency=freq_str,
+    )
+
+
 @mcp.tool
 async def search_components(input: SearchInput) -> SearchResult:
     """Search components by task."""
     pipeline = await get_pipeline()
     graph_store = await get_graph_store()
+    metadata_store = await get_metadata_store()
+    component_memory = await get_component_memory()
 
     # Convert component_type string to enum if provided
     component_type = None
@@ -126,7 +181,7 @@ async def search_components(input: SearchInput) -> SearchResult:
         top_k=input.top_k,
     )
 
-    # Build recommendations with rationale
+    # Build recommendations with rationale and health status
     recommendations: list[ComponentRecommendation] = []
     for comp in result.context.components:
         node = graph_store.get_node(comp.component_id)
@@ -137,6 +192,15 @@ async def search_components(input: SearchInput) -> SearchResult:
         content = node.label  # Future: use raw_content
         token_cost = estimate_tokens(content)
 
+        # Get health status from metadata (HLTH-01)
+        health = None
+        metadata = metadata_store.get(comp.component_id)
+        if metadata:
+            health = _compute_health_status(metadata)
+
+        # Record recommendation for usage tracking (LRNG-03)
+        component_memory.record_recommendation(comp.component_id)
+
         recommendations.append(
             ComponentRecommendation(
                 id=comp.component_id,
@@ -145,8 +209,12 @@ async def search_components(input: SearchInput) -> SearchResult:
                 score=comp.score,
                 rationale=rationale,
                 token_cost=token_cost,
+                health=health,
             )
         )
+
+    # Persist component memory after recording recommendations
+    component_memory.save(str(_COMPONENT_MEMORY_PATH))
 
     # Format conflicts as strings
     conflict_strs = [
@@ -158,6 +226,9 @@ async def search_components(input: SearchInput) -> SearchResult:
         components=recommendations,
         total_tokens=result.context.total_tokens,
         conflicts=conflict_strs,
+        # RETR-06: Abstraction level awareness
+        abstraction_level=result.abstraction_level,
+        suggested_types=result.suggested_types or [],
     )
 
 
@@ -209,12 +280,11 @@ async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
 @mcp.tool
 async def install_components(input: InstallInput) -> InstallResult:
     """Install components to .claude/."""
-    from pathlib import Path
-
     from skill_retriever.mcp.installer import ComponentInstaller
 
     graph_store = await get_graph_store()
     metadata_store = await get_metadata_store()
+    component_memory = await get_component_memory()
 
     # Determine target directory
     target_dir = Path(input.target_dir).resolve()
@@ -230,8 +300,14 @@ async def install_components(input: InstallInput) -> InstallResult:
         auto_resolve_deps=True,
     )
 
+    # Record selections for co-occurrence tracking (LRNG-03)
+    installed_ids = [r.component_id for r in report.installed if r.success]
+    if installed_ids:
+        component_memory.record_selection(installed_ids)
+        component_memory.save(str(_COMPONENT_MEMORY_PATH))
+
     return InstallResult(
-        installed=[r.component_id for r in report.installed if r.success],
+        installed=installed_ids,
         skipped=report.skipped,
         errors=report.errors,
     )
@@ -300,6 +376,8 @@ def _parse_github_url(url: str) -> tuple[str, str]:
 @mcp.tool
 async def ingest_repo(input: IngestInput) -> IngestResult:
     """Index a component repository."""
+    from skill_retriever.memory.ingestion_cache import IngestionCache
+
     graph_store = await get_graph_store()
     vector_store = await get_vector_store()
     metadata_store = await get_metadata_store()
@@ -312,8 +390,14 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         return IngestResult(
             components_found=0,
             components_indexed=0,
+            components_skipped=0,
             errors=[str(e)],
         )
+
+    # Initialize ingestion cache for incremental updates (SYNC-03)
+    cache_path = Path(tempfile.gettempdir()) / "skill-retriever-ingestion-cache.json"
+    ingestion_cache = IngestionCache(cache_path)
+    repo_key = f"{owner}/{name}"
 
     # Clone to temp directory
     with tempfile.TemporaryDirectory() as tmpdir:
@@ -325,6 +409,7 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             return IngestResult(
                 components_found=0,
                 components_indexed=0,
+                components_skipped=0,
                 errors=[f"Failed to clone repository: {e}"],
             )
 
@@ -338,6 +423,7 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             return IngestResult(
                 components_found=0,
                 components_indexed=0,
+                components_skipped=0,
                 errors=["No components found in repository"],
             )
 
@@ -345,8 +431,18 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         from skill_retriever.entities.graph import GraphEdge, GraphNode
 
         indexed_count = 0
+        skipped_count = 0
+
         for comp in components:
             try:
+                # Incremental ingestion: skip unchanged components (SYNC-03)
+                content_for_hash = f"{comp.name}|{comp.description}|{comp.raw_content}"
+                if input.incremental and ingestion_cache.is_unchanged(
+                    repo_key, comp.id, content_for_hash
+                ):
+                    skipped_count += 1
+                    continue
+
                 # Add node to graph
                 node = GraphNode(
                     id=comp.id,
@@ -381,17 +477,22 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 # Store component metadata for installation lookup
                 metadata_store.add(comp)
 
+                # Update ingestion cache
+                ingestion_cache.update_hash(repo_key, comp.id, content_for_hash)
+
                 indexed_count += 1
             except Exception as e:
                 errors.append(f"Failed to index {comp.id}: {e}")
                 logger.exception("Failed to index component %s", comp.id)
 
-        # Persist metadata store after all components indexed
+        # Persist stores after all components indexed
         metadata_store.save()
+        ingestion_cache.save()
 
     return IngestResult(
         components_found=len(components),
         components_indexed=indexed_count,
+        components_skipped=skipped_count,
         errors=errors,
     )
 

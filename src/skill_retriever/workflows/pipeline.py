@@ -47,6 +47,9 @@ class _CachedResult:
     context: RetrievalContext
     dependencies_added: tuple[str, ...]
     conflicts: tuple[ConflictInfo, ...]
+    # RETR-06: Abstraction level awareness
+    abstraction_level: str = "medium"
+    suggested_types: tuple[str, ...] = ()
 
 
 class RetrievalPipeline:
@@ -198,6 +201,9 @@ class RetrievalPipeline:
             context=context,
             dependencies_added=tuple(dependencies_added),
             conflicts=tuple(conflicts),
+            # RETR-06: Pass through abstraction level from query plan
+            abstraction_level=plan.abstraction_level.value,
+            suggested_types=tuple(plan.suggested_types),
         )
 
     def retrieve(
@@ -245,6 +251,9 @@ class RetrievalPipeline:
             dependencies_added=list(cached_result.dependencies_added),
             latency_ms=latency_ms,
             cache_hit=cache_hit,
+            # RETR-06: Abstraction level awareness
+            abstraction_level=cached_result.abstraction_level,
+            suggested_types=list(cached_result.suggested_types),
         )
 
     def clear_cache(self) -> None:

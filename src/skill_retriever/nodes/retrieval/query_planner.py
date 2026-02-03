@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any
 
-from skill_retriever.nodes.retrieval.models import QueryComplexity, RetrievalPlan
+from skill_retriever.nodes.retrieval.models import (
+    AbstractionLevel,
+    QueryComplexity,
+    RetrievalPlan,
+)
 
 if TYPE_CHECKING:
     from skill_retriever.memory.graph_store import GraphStore
@@ -25,36 +29,76 @@ def plan_retrieval(query: str, entity_count: int) -> RetrievalPlan:
     - SIMPLE: query < 300 chars AND entity_count <= 2
     - COMPLEX: query > 600 chars OR entity_count > 5
     - MODERATE: everything else
+
+    Abstraction level awareness (RETR-06):
+    - SIMPLE queries → LOW abstraction (commands, hooks, settings)
+    - MODERATE queries → MEDIUM abstraction (skills)
+    - COMPLEX queries → HIGH abstraction (agents, MCPs)
     """
     query_len = len(query)
+    query_lower = query.lower()
 
-    # SIMPLE: short query with few entities
+    # Detect explicit abstraction hints in query
+    high_hints = {"agent", "autonomous", "orchestrat", "workflow", "mcp", "server"}
+    low_hints = {"command", "hook", "setting", "config", "sandbox", "quick", "simple"}
+
+    has_high_hint = any(hint in query_lower for hint in high_hints)
+    has_low_hint = any(hint in query_lower for hint in low_hints)
+
+    # SIMPLE: short query with few entities → suggest low-abstraction components
     if query_len < 300 and entity_count <= 2:
+        abstraction = AbstractionLevel.LOW
+        suggested = ["command", "hook", "setting", "sandbox"]
+        if has_high_hint:
+            abstraction = AbstractionLevel.HIGH
+            suggested = ["agent", "mcp"]
+
         return RetrievalPlan(
             complexity=QueryComplexity.SIMPLE,
             use_ppr=False,
             use_flow_pruning=False,
             ppr_alpha=0.85,
             max_results=10,
+            abstraction_level=abstraction,
+            suggested_types=suggested,
         )
 
-    # COMPLEX: long query or many entities
+    # COMPLEX: long query or many entities → suggest high-abstraction components
     if query_len > 600 or entity_count > 5:
+        abstraction = AbstractionLevel.HIGH
+        suggested = ["agent", "mcp", "skill"]
+        if has_low_hint:
+            abstraction = AbstractionLevel.LOW
+            suggested = ["command", "hook", "setting"]
+
         return RetrievalPlan(
             complexity=QueryComplexity.COMPLEX,
             use_ppr=True,
             use_flow_pruning=True,
             ppr_alpha=0.7,
             max_results=30,
+            abstraction_level=abstraction,
+            suggested_types=suggested,
         )
 
-    # MODERATE: everything else
+    # MODERATE: everything else → suggest medium-abstraction components
+    abstraction = AbstractionLevel.MEDIUM
+    suggested = ["skill", "command", "agent"]
+    if has_high_hint:
+        abstraction = AbstractionLevel.HIGH
+        suggested = ["agent", "mcp", "skill"]
+    elif has_low_hint:
+        abstraction = AbstractionLevel.LOW
+        suggested = ["command", "hook", "setting"]
+
     return RetrievalPlan(
         complexity=QueryComplexity.MODERATE,
         use_ppr=True,
         use_flow_pruning=False,
         ppr_alpha=0.85,
         max_results=20,
+        abstraction_level=abstraction,
+        suggested_types=suggested,
     )
 
 
