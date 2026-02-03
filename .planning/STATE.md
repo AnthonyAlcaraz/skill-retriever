@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 3: Memory Layer -- COMPLETE, ready for Phase 4
+**Current focus:** Phase 4: Retrieval Engine -- Plan 01 complete
 
 ## Current Position
 
-Phase: 3 of 7 (Memory Layer)
-Plan: 3 of 3 in current phase -- ALL COMPLETE
-Status: Phase 3 complete, ready for Phase 4 (Retrieval Engine)
-Last activity: 2026-02-03 -- Plan 03-01 executed (graph store with PPR)
+Phase: 4 of 7 (Retrieval Engine)
+Plan: 1 of 3 in current phase
+Status: In progress
+Last activity: 2026-02-03 -- Plan 04-01 executed (query planner and vector search node)
 
-Progress: [███████░░░] 70%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
+- Total plans completed: 8
 - Average duration: -
 - Total execution time: -
 
@@ -30,9 +30,10 @@ Progress: [███████░░░] 70%
 | 01-Foundation | 1/1 | - | - |
 | 02-Domain Models | 3/3 | - | - |
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
+| 04-Retrieval | 1/3 | ~8min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: 02-02 ✓, 03-03 ✓, 03-02 ✓, 03-01 ✓
+- Last 5 plans: 03-03 ✓, 03-02 ✓, 03-01 ✓, 04-01 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -56,6 +57,9 @@ Recent decisions affecting current work:
 - [03-02]: pyright ignore comments for faiss-cpu (no type stubs), matching networkx pattern
 - [03-01]: `Any` annotations for NX edge/node iteration; pyright ignores for NX serialization stubs
 - [03-01]: scipy added as runtime dependency — NX 3.6 pagerank delegates to scipy internally
+- [04-01]: isinstance narrowing for Protocol implementation access (_graph attribute)
+- [04-01]: Post-retrieval type filtering with 3x over-fetch to preserve semantic relevance
+- [04-01]: Module-level singleton for expensive TextEmbedding initialization
 
 ### Pending Todos
 
@@ -69,7 +73,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 03-01-PLAN.md (graph store with Protocol abstraction and PPR) -- Phase 3 fully complete
+Stopped at: Completed 04-01-PLAN.md (query planner and vector search node)
 Resume file: None
 
 ## Commits
@@ -83,3 +87,4 @@ Resume file: None
 - `67100d6` feat(03-03): component memory with usage tracking and co-selection
 - `4348082` feat(03-02): FAISS vector store with cosine similarity and persistence
 - `f395d72` feat(03-01): graph store with Protocol abstraction and PPR
+- `b17482f` feat(04-01): query planner and vector search node
