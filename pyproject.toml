@@ -25,6 +25,9 @@ dev = [
     "pyright>=1.1.408",
 ]
 
+[project.scripts]
+skill-retriever = "skill_retriever.mcp:main"
+
 [build-system]
 requires = ["uv_build>=0.9.28,<0.10.0"]
 build-backend = "uv_build"
