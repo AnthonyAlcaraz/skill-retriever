@@ -56,7 +56,11 @@ class RepositoryCrawler:
 
         components: list[ComponentMetadata] = []
         for file_path in files:
-            component = strategy.extract(file_path, self.repo_path)
+            try:
+                component = strategy.extract(file_path, self.repo_path)
+            except Exception as e:
+                logger.warning("Failed to extract %s: %s", file_path, e)
+                continue
             if component is None:
                 continue
 
