@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 5: Retrieval Orchestrator -- Complete
+**Current focus:** Phase 6: MCP Server -- In Progress
 
 ## Current Position
 
-Phase: 5 of 7 (Retrieval Orchestrator) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase complete
-Last activity: 2026-02-03 -- Plan 05-02 executed (Dependency resolver and conflict detection)
+Phase: 6 of 7 (MCP Server)
+Plan: 1 of 2 in current phase
+Status: In progress
+Last activity: 2026-02-03 -- Plan 06-01 executed (MCP server foundation)
 
-Progress: [██████████] 100% (Phase 5)
+Progress: [████████████░░] 86% (13/15 plans)
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 12
-- Average duration: ~7min
+- Total plans completed: 13
+- Average duration: ~8min
 - Total execution time: -
 
 **By Phase:**
@@ -32,10 +32,11 @@ Progress: [██████████] 100% (Phase 5)
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
 | 04-Retrieval | 3/3 | ~24min | ~8min |
 | 05-Orchestrator | 2/2 | ~16min | ~8min |
+| 06-MCP Server | 1/2 | ~12min | ~12min |
 
 **Recent Trend:**
-- Last 5 plans: 04-02 ✓, 04-03 ✓, 05-01 ✓, 05-02 ✓
-- Trend: Consistent ~8min per plan
+- Last 5 plans: 04-03 ✓, 05-01 ✓, 05-02 ✓, 06-01 ✓
+- Trend: Consistent ~8-12min per plan
 
 *Updated after each plan completion*
 
@@ -74,6 +75,9 @@ Recent decisions affecting current work:
 - [05-02]: Dependencies added as RankedComponent with source='dependency' and min score 0.1
 - [05-02]: frozenset{a,b} for bidirectional conflict deduplication
 - [05-02]: Edge-type subgraph filtering before nx.descendants() traversal
+- [06-01]: fastmcp v2 pinned (<3) to avoid breaking changes from v3 beta
+- [06-01]: Lazy pipeline initialization with asyncio.Lock for thread safety
+- [06-01]: install_components stubbed - deferred to Plan 02
 
 ### Pending Todos
 
@@ -87,7 +91,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 05-02-PLAN.md (Dependency resolver and conflict detection)
+Stopped at: Completed 06-01-PLAN.md (MCP server foundation)
 Resume file: None
 
 ## Commits
@@ -111,3 +115,6 @@ Resume file: None
 - `268b843` feat(05-01): add RetrievalPipeline coordinator with LRU caching
 - `8ef79f5` feat(05-02): add dependency resolver with transitive closure
 - `76e666a` feat(05-02): integrate dependency resolver into pipeline
+- `be2a595` feat(06-01): add FastMCP dependency and Pydantic schemas
+- `c1c6da5` feat(06-01): add rationale generator from graph paths
+- `f69049b` feat(06-01): add FastMCP server with 5 tool handlers
