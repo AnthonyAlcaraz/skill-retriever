@@ -83,9 +83,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 04-01-PLAN.md -- Query planner and vector search node
-- [ ] 04-02-PLAN.md -- PPR engine with adaptive alpha and flow pruner
-- [ ] 04-03-PLAN.md -- Score fusion (RRF), reranker, and context assembler
+- [x] 04-01-PLAN.md -- Query planner and vector search node
+- [x] 04-02-PLAN.md -- PPR engine with adaptive alpha and flow pruner
+- [x] 04-03-PLAN.md -- Score fusion (RRF), reranker, and context assembler
 
 ### Phase 5: Retrieval Orchestrator
 **Goal**: System coordinates all retrieval strategies into a single pipeline that returns complete, conflict-free component sets for any task description
@@ -96,11 +96,11 @@ Plans:
   2. System detects and surfaces conflicts between recommended components before returning results
   3. Simple queries (single component lookup) complete in under 500ms; complex queries (multi-hop dependency resolution) complete in under 1000ms
   4. Pipeline enforces a hard token budget (max 2000 tokens) per retrieval call to prevent context pollution
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 05-01: Pipeline coordinator with early exit, caching, and latency monitoring
-- [ ] 05-02: Dependency resolver and conflict detector
+- [ ] 05-01-PLAN.md -- Pipeline coordinator with early exit, caching, and latency monitoring
+- [ ] 05-02-PLAN.md -- Dependency resolver and conflict detector
 
 ### Phase 6: MCP Server & Installation
 **Goal**: Claude Code can call the system as an MCP server and install recommended components into .claude/ directory
