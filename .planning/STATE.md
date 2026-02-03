@@ -5,21 +5,21 @@
 See: .planning/PROJECT.md (updated 2026-02-02)
 
 **Core value:** Given a task description, return the minimal correct set of components with all dependencies resolved.
-**Current focus:** Phase 4: Retrieval Engine -- Plan 01 complete
+**Current focus:** Phase 4: Retrieval Engine -- Plan 02 complete
 
 ## Current Position
 
 Phase: 4 of 7 (Retrieval Engine)
-Plan: 1 of 3 in current phase
+Plan: 2 of 3 in current phase
 Status: In progress
-Last activity: 2026-02-03 -- Plan 04-01 executed (query planner and vector search node)
+Last activity: 2026-02-03 -- Plan 04-02 executed (PPR engine + flow pruner)
 
-Progress: [████████░░] 80%
+Progress: [████████░░] 85%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: -
 - Total execution time: -
 
@@ -30,10 +30,10 @@ Progress: [████████░░] 80%
 | 01-Foundation | 1/1 | - | - |
 | 02-Domain Models | 3/3 | - | - |
 | 03-Memory Layer | 3/3 | ~16min | ~5min |
-| 04-Retrieval | 1/3 | ~8min | ~8min |
+| 04-Retrieval | 2/3 | ~16min | ~8min |
 
 **Recent Trend:**
-- Last 5 plans: 03-03 ✓, 03-02 ✓, 03-01 ✓, 04-01 ✓
+- Last 5 plans: 03-02 ✓, 03-03 ✓, 04-01 ✓, 04-02 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -60,6 +60,9 @@ Recent decisions affecting current work:
 - [04-01]: isinstance narrowing for Protocol implementation access (_graph attribute)
 - [04-01]: Post-retrieval type filtering with 3x over-fetch to preserve semantic relevance
 - [04-01]: Module-level singleton for expensive TextEmbedding initialization
+- [04-02]: Adaptive alpha: 0.9 specific (named entity + narrow), 0.6 broad (>5 seeds), 0.85 default
+- [04-02]: Flow pruning max 8 endpoints, max 10 paths, 0.01 reliability threshold
+- [04-02]: Path reliability = average PPR score of nodes in path
 
 ### Pending Todos
 
@@ -67,13 +70,13 @@ None yet.
 
 ### Blockers/Concerns
 
-- PPR alpha tuning requires 20-30 validation query-component pairs; must build during Phase 2 ingestion work
-- Flow pruning algorithm needs porting from JavaScript (cross-vault-context.js) to Python in Phase 4
+- PPR alpha tuning requires 20-30 validation query-component pairs; must build during Phase 2 ingestion work (RESOLVED: adaptive alpha implemented in 04-02)
+- Flow pruning algorithm needs porting from JavaScript (cross-vault-context.js) to Python in Phase 4 (RESOLVED: flow_pruner.py in 04-02)
 
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 04-01-PLAN.md (query planner and vector search node)
+Stopped at: Completed 04-02-PLAN.md (PPR engine + flow pruner)
 Resume file: None
 
 ## Commits
@@ -88,3 +91,5 @@ Resume file: None
 - `4348082` feat(03-02): FAISS vector store with cosine similarity and persistence
 - `f395d72` feat(03-01): graph store with Protocol abstraction and PPR
 - `b17482f` feat(04-01): query planner and vector search node
+- `19f2de7` feat(04-02): add PPR engine with adaptive alpha
+- `57f6a36` feat(04-02): add flow-based pruning with 40%+ reduction
