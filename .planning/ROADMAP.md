@@ -9,6 +9,7 @@ This roadmap delivers a graph-based MCP server that accepts natural language tas
 **Phase Numbering:**
 - Integer phases (1, 2, 3): Planned milestone work
 - Decimal phases (2.1, 2.2): Urgent insertions (marked with INSERTED)
+- Letter suffixes (01a, 01b): Split plans within a phase
 
 Decimal phases appear between their surrounding integers in numeric order.
 
@@ -18,7 +19,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 4: Retrieval Nodes** - PPR engine, vector search, flow pruning, and score fusion
 - [x] **Phase 5: Retrieval Orchestrator** - Pipeline coordination, dependency resolution, conflict detection
 - [x] **Phase 6: MCP Server & Installation** - FastMCP tools, component installation, rationale generation
-- [ ] **Phase 7: Integration & Validation** - End-to-end wiring, hyperparameter tuning, evaluation harness
+- [x] **Phase 7: Integration & Validation** - End-to-end wiring, hyperparameter tuning, evaluation harness
 
 ## Phase Details
 
@@ -121,18 +122,20 @@ Plans:
 ### Phase 7: Integration & Validation
 **Goal**: End-to-end system is tuned, validated against known-good component sets, and ready for daily use
 **Depends on**: Phase 6
-**Requirements**: (cross-cutting validation of all requirements)
+**Requirements**: (cross-cutting validation of all 16 v1 requirements)
 **Success Criteria** (what must be TRUE):
   1. 30+ query-to-expected-component validation pairs pass with MRR above 0.7
   2. Hybrid retrieval (vector + graph) outperforms vector-only and graph-only baselines on the validation set
   3. PPR alpha grid search results are documented and the chosen values produce stable rankings
   4. MCP server starts in under 3 seconds and handles 10 sequential queries without degradation
-**Plans**: 3 plans
+  5. All 16 v1 requirements (INGS-*, RETR-*, GRPH-*, INTG-*) have explicit test coverage
+**Plans**: 4 plans
 
 Plans:
-- [ ] 07-01-PLAN.md -- Validation harness with 30+ query-component pairs and MRR evaluation using ranx
-- [ ] 07-02-PLAN.md -- Hyperparameter tuning (PPR alpha grid search, RRF k validation)
-- [ ] 07-03-PLAN.md -- Performance benchmarks and MCP integration tests
+- [x] 07-01-PLAN.md -- Validation infrastructure (ranx, fixtures, seeded_pipeline fixture)
+- [x] 07-01a-PLAN.md -- MRR evaluation tests, baseline comparisons, 30+ validation pairs, requirement gap coverage
+- [x] 07-02-PLAN.md -- Hyperparameter tuning (PPR alpha grid search, RRF k validation)
+- [x] 07-03-PLAN.md -- Performance benchmarks and MCP integration tests
 
 ## Progress
 
@@ -147,4 +150,4 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 4. Retrieval Nodes | 3/3 | Complete | 2026-02-03 |
 | 5. Retrieval Orchestrator | 2/2 | Complete | 2026-02-03 |
 | 6. MCP Server & Installation | 2/2 | Complete | 2026-02-03 |
-| 7. Integration & Validation | 0/3 | Not started | - |
+| 7. Integration & Validation | 4/4 | Complete | 2026-02-03 |
