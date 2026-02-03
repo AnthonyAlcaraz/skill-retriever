@@ -11,15 +11,15 @@ See: .planning/PROJECT.md (updated 2026-02-02)
 
 Phase: 3 of 7 (Memory Layer)
 Plan: 3 of 3 in current phase
-Status: In progress (03-03 complete, other plans may be in parallel)
-Last activity: 2026-02-03 -- Plan 03-03 executed (component memory with usage tracking)
+Status: In progress (03-02 and 03-03 complete, 03-01 pending)
+Last activity: 2026-02-03 -- Plan 03-02 executed (FAISS vector store)
 
 Progress: [█████░░░░░] 50%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
+- Total plans completed: 6
 - Average duration: -
 - Total execution time: -
 
@@ -29,10 +29,10 @@ Progress: [█████░░░░░] 50%
 |-------|-------|-------|----------|
 | 01-Foundation | 1/1 | - | - |
 | 02-Domain Models | 3/3 | - | - |
-| 03-Memory Layer | 1/3 | ~4min | ~4min |
+| 03-Memory Layer | 2/3 | ~9min | ~4.5min |
 
 **Recent Trend:**
-- Last 5 plans: 02-01 ✓, 02-03 ✓, 02-02 ✓, 03-03 ✓
+- Last 5 plans: 02-03 ✓, 02-02 ✓, 03-03 ✓, 03-02 ✓
 - Trend: -
 
 *Updated after each plan completion*
@@ -52,6 +52,8 @@ Recent decisions affecting current work:
 - [02-02]: Strategy pattern with priority ordering (Davila7 > Flat > Generic) for repo layout detection; noqa pragmas for runtime Path imports in function-body annotations
 - [03-03]: Co-selection keys use pipe separator (a|b) with lexicographic ordering for deterministic lookup
 - [03-03]: ComponentMemory uses mutable Pydantic BaseModel for in-place stats mutation
+- [03-02]: IndexFlatIP brute-force over IVF/HNSW — sufficient for <50k vectors
+- [03-02]: pyright ignore comments for faiss-cpu (no type stubs), matching networkx pattern
 
 ### Pending Todos
 
@@ -65,7 +67,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 03-03-PLAN.md (component memory with usage tracking and co-selection)
+Stopped at: Completed 03-02-PLAN.md (FAISS vector store with cosine similarity)
 Resume file: None
 
 ## Commits
@@ -77,3 +79,4 @@ Resume file: None
 - `5e72a81` feat(02-02): extraction strategies and repository crawler
 - `1ad9099` test(02-02): 15 ingestion tests with lint/type fixes
 - `67100d6` feat(03-03): component memory with usage tracking and co-selection
+- `4348082` feat(03-02): FAISS vector store with cosine similarity and persistence
