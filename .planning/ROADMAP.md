@@ -112,11 +112,11 @@ Plans:
   3. Calling install_components places chosen components into the correct .claude/ subdirectory structure
   4. Each recommendation includes estimated context token cost, and the system optimizes for minimal footprint
   5. Total MCP tool schema definitions stay under 300 tokens
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 06-01: FastMCP server with tool definitions and schema
-- [ ] 06-02: Installation engine and rationale generator
+- [ ] 06-01-PLAN.md -- FastMCP server with tool definitions, Pydantic schemas, and rationale generator
+- [ ] 06-02-PLAN.md -- Installation engine with .claude/ directory mapping and settings merge
 
 ### Phase 7: Integration & Validation
 **Goal**: End-to-end system is tuned, validated against known-good component sets, and ready for daily use
