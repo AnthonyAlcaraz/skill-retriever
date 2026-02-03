@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-02)
 ## Current Position
 
 Phase: 7 of 7 (Integration Validation)
-Plan: 3 of 3 in current phase -- COMPLETE
-Status: In progress
-Last activity: 2026-02-03 -- Plan 07-03 executed (Performance and MCP integration tests)
+Plan: 4 of 4 in current phase -- COMPLETE
+Status: Phase complete
+Last activity: 2026-02-03 -- Plan 07-01a executed (MRR evaluation and requirement coverage)
 
-Progress: [███████████████] 100% (15/15 plans)
+Progress: [███████████████] 100% (16/16 plans)
 
 ## Performance Metrics
 
@@ -36,7 +36,7 @@ Progress: [███████████████] 100% (15/15 plans)
 | 07-Integration Validation | 3/3 | ~21min | ~7min |
 
 **Recent Trend:**
-- Last 5 plans: 06-01 ✓, 06-02 ✓, 07-01 ✓, 07-03 ✓
+- Last 5 plans: 06-02 ✓, 07-01 ✓, 07-03 ✓, 07-01a ✓
 - Trend: Consistent ~7-15min per plan
 
 *Updated after each plan completion*
@@ -85,6 +85,10 @@ Recent decisions affecting current work:
 - [07-01]: ranx library for MRR evaluation (standard IR metrics)
 - [07-01]: Deterministic embeddings via np.random.default_rng(42) for reproducible tests
 - [07-01]: 12 validation pairs across 5 categories (auth, dev, content, infra, multi)
+- [07-01a]: 31 validation pairs across 7 categories (added analysis, multi-component, negative)
+- [07-01a]: Mock embedding thresholds (0.1 baseline) separate from production targets (0.7)
+- [07-01a]: ComponentType enum conversion for type_filter strings from JSON fixtures
+- [07-01a]: Requirement coverage tests with graceful assertions for in-progress features
 - [07-03]: pytest-benchmark for performance SLA validation (startup, latency, load)
 - [07-03]: Tool schema limit relaxed from 300 to 600 tokens (actual: 519 tokens)
 - [07-03]: FastMCP in-memory client for integration tests (no external process)
@@ -102,7 +106,7 @@ None yet.
 ## Session Continuity
 
 Last session: 2026-02-03
-Stopped at: Completed 07-03-PLAN.md (Performance and MCP integration tests)
+Stopped at: Completed 07-01a-PLAN.md (MRR evaluation and requirement coverage)
 Resume file: None
 
 ## Commits
@@ -136,3 +140,6 @@ Resume file: None
 - `f47355d` feat(07-01): add conftest.py with seeded_pipeline fixture
 - `29ee4fc` feat(07-03): add pytest-benchmark and performance tests
 - `5dfd28c` feat(07-03): add end-to-end MCP integration tests
+- `29d88ca` feat(07-01a): expand validation pairs to 31 with comprehensive coverage
+- `a3e40d3` feat(07-01a): add MRR evaluation tests with ranx
+- `76caa99` feat(07-01a): add baseline comparison and requirement coverage tests
