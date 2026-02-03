@@ -157,11 +157,14 @@ class NetworkXGraphStore:
         for sid in valid_seeds:
             personalization[sid] = seed_weight
 
+        # High alpha values need more iterations to converge
+        max_iter = 200 if alpha > 0.9 else 100
         scores: dict[str, float] = nx.pagerank(
             self._graph,
             alpha=alpha,
             personalization=personalization,
             weight="weight",
+            max_iter=max_iter,
         )
 
         # Exclude seed nodes from results
