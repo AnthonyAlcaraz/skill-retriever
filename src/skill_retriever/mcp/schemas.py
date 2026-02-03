@@ -114,4 +114,5 @@ class IngestResult(BaseModel):
     components_found: int
     components_indexed: int
     components_skipped: int = Field(default=0, description="Unchanged components skipped")
+    components_deduplicated: int = Field(default=0, description="Duplicates removed by entity resolution")
     errors: list[str]

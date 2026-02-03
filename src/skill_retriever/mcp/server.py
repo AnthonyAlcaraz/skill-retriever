@@ -399,6 +399,12 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
     ingestion_cache = IngestionCache(cache_path)
     repo_key = f"{owner}/{name}"
 
+    # Track counts for return value
+    raw_count = 0
+    dedup_count = 0
+    indexed_count = 0
+    skipped_count = 0
+
     # Clone to temp directory
     with tempfile.TemporaryDirectory() as tmpdir:
         repo_path = Path(tmpdir) / name
@@ -427,11 +433,18 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 errors=["No components found in repository"],
             )
 
+        # Deduplicate components using entity resolution
+        from skill_retriever.nodes.ingestion.resolver import EntityResolver
+
+        raw_count = len(components)
+        resolver = EntityResolver(fuzzy_threshold=80.0, embedding_threshold=0.85)
+        components = resolver.resolve(components)
+        dedup_count = raw_count - len(components)
+        if dedup_count > 0:
+            logger.info("Entity resolution removed %d duplicates", dedup_count)
+
         # Add to graph store
         from skill_retriever.entities.graph import GraphEdge, GraphNode
-
-        indexed_count = 0
-        skipped_count = 0
 
         for comp in components:
             try:
@@ -490,9 +503,10 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         ingestion_cache.save()
 
     return IngestResult(
-        components_found=len(components),
+        components_found=raw_count,
         components_indexed=indexed_count,
         components_skipped=skipped_count,
+        components_deduplicated=dedup_count,
         errors=errors,
     )
 

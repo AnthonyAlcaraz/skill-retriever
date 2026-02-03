@@ -39,8 +39,10 @@ def normalize_frontmatter(raw: dict[str, Any]) -> dict[str, Any]:
     """Normalize raw frontmatter into a consistent schema.
 
     - Maps ``allowed-tools`` and ``allowed_tools`` to ``tools``.
+    - Maps ``requires``, ``depends``, ``depends-on``, ``depends_on`` to ``dependencies``.
     - Ensures ``tags`` is always a list (splits on commas if string).
     - Ensures ``tools`` is always a list.
+    - Ensures ``dependencies`` is always a list.
     - Strips whitespace from ``name`` and ``description``.
     """
     result = dict(raw)
@@ -49,6 +51,11 @@ def normalize_frontmatter(raw: dict[str, Any]) -> dict[str, Any]:
     for key in ("allowed-tools", "allowed_tools"):
         if key in result:
             result.setdefault("tools", result.pop(key))
+
+    # Merge dependency aliases into dependencies
+    for key in ("requires", "depends", "depends-on", "depends_on"):
+        if key in result:
+            result.setdefault("dependencies", result.pop(key))
 
     # Ensure tools is a list
     tools = result.get("tools")
@@ -63,6 +70,13 @@ def normalize_frontmatter(raw: dict[str, Any]) -> dict[str, Any]:
         result["tags"] = []
     elif isinstance(tags, str):
         result["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+
+    # Ensure dependencies is a list
+    deps = result.get("dependencies")
+    if deps is None:
+        result["dependencies"] = []
+    elif isinstance(deps, str):
+        result["dependencies"] = [d.strip() for d in deps.split(",") if d.strip()]
 
     # Strip whitespace from name and description
     if "name" in result and isinstance(result["name"], str):

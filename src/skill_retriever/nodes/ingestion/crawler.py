@@ -10,6 +10,7 @@ from skill_retriever.nodes.ingestion.extractors import (
     Davila7Strategy,
     FlatDirectoryStrategy,
     GenericMarkdownStrategy,
+    PythonModuleStrategy,
 )
 from skill_retriever.nodes.ingestion.git_signals import extract_git_signals
 
@@ -19,69 +20,98 @@ logger = logging.getLogger(__name__)
 class RepositoryCrawler:
     """Crawl a local repository clone and extract component metadata.
 
-    Strategies are tried in order; the first one whose ``can_handle``
-    returns True is used for the entire repository.
+    Uses multiple strategies to extract components from different file types.
+    Markdown strategies are tried in priority order (first match wins).
+    Python strategy runs independently to capture source code components.
     """
 
     def __init__(self, repo_owner: str, repo_name: str, repo_path: Path) -> None:
         self.repo_owner = repo_owner
         self.repo_name = repo_name
         self.repo_path = repo_path
-        self.strategies = [
+        # Markdown strategies (first match wins)
+        self.markdown_strategies = [
             Davila7Strategy(repo_owner, repo_name),
             FlatDirectoryStrategy(repo_owner, repo_name),
             GenericMarkdownStrategy(repo_owner, repo_name),
         ]
+        # Python strategy runs independently
+        self.python_strategy = PythonModuleStrategy(repo_owner, repo_name)
 
     def crawl(self) -> list[ComponentMetadata]:
         """Discover and extract all components from the repository."""
-        strategy = None
-        for s in self.strategies:
+        components: list[ComponentMetadata] = []
+
+        # Find markdown strategy
+        md_strategy = None
+        for s in self.markdown_strategies:
             if s.can_handle(self.repo_path):
-                strategy = s
+                md_strategy = s
                 logger.info(
-                    "Using %s for %s/%s",
+                    "Using %s for markdown in %s/%s",
                     type(s).__name__,
                     self.repo_owner,
                     self.repo_name,
                 )
                 break
 
-        if strategy is None:
-            logger.warning("No strategy matched for %s", self.repo_path)
-            return []
+        # Extract markdown components
+        if md_strategy is not None:
+            md_files = md_strategy.discover(self.repo_path)
+            logger.info("Discovered %d markdown component files", len(md_files))
+            for file_path in md_files:
+                comp = self._extract_with_signals(md_strategy, file_path)
+                if comp:
+                    components.append(comp)
 
-        files = strategy.discover(self.repo_path)
-        logger.info("Discovered %d component files", len(files))
+        # Extract Python components (independent of markdown)
+        if self.python_strategy.can_handle(self.repo_path):
+            logger.info(
+                "Using PythonModuleStrategy for Python in %s/%s",
+                self.repo_owner,
+                self.repo_name,
+            )
+            py_files = self.python_strategy.discover(self.repo_path)
+            logger.info("Discovered %d Python component files", len(py_files))
+            for file_path in py_files:
+                comp = self._extract_with_signals(self.python_strategy, file_path)
+                if comp:
+                    components.append(comp)
 
-        components: list[ComponentMetadata] = []
-        for file_path in files:
-            try:
-                component = strategy.extract(file_path, self.repo_path)
-            except Exception as e:
-                logger.warning("Failed to extract %s: %s", file_path, e)
-                continue
-            if component is None:
-                continue
+        if not components:
+            logger.warning("No components found for %s", self.repo_path)
 
-            # Merge git signals
-            try:
-                rel_path = str(file_path.relative_to(self.repo_path))
-                signals = extract_git_signals(self.repo_path, rel_path)
-                # Filter out None values and zero defaults that shouldn't override
-                update_fields: dict[str, object] = {}
-                if signals.get("last_updated") is not None:
-                    update_fields["last_updated"] = signals["last_updated"]
-                if signals.get("commit_count", 0) > 0:
-                    update_fields["commit_count"] = signals["commit_count"]
-                if signals.get("commit_frequency_30d", 0.0) > 0.0:
-                    update_fields["commit_frequency_30d"] = signals["commit_frequency_30d"]
-                if update_fields:
-                    component = component.model_copy(update=update_fields)
-            except Exception:
-                logger.debug("Git signals failed for %s", file_path, exc_info=True)
-
-            components.append(component)
-
-        logger.info("Extracted %d components", len(components))
+        logger.info("Extracted %d total components", len(components))
         return components
+
+    def _extract_with_signals(
+        self, strategy: object, file_path: Path
+    ) -> ComponentMetadata | None:
+        """Extract component and merge git signals."""
+        try:
+            # Strategy has extract method - use Any to avoid type issues
+            component: ComponentMetadata | None = strategy.extract(file_path, self.repo_path)  # type: ignore[union-attr]
+        except Exception as e:
+            logger.warning("Failed to extract %s: %s", file_path, e)
+            return None
+
+        if component is None:
+            return None
+
+        # Merge git signals
+        try:
+            rel_path = str(file_path.relative_to(self.repo_path))
+            signals = extract_git_signals(self.repo_path, rel_path)
+            update_fields: dict[str, object] = {}
+            if signals.get("last_updated") is not None:
+                update_fields["last_updated"] = signals["last_updated"]
+            if signals.get("commit_count", 0) > 0:
+                update_fields["commit_count"] = signals["commit_count"]
+            if signals.get("commit_frequency_30d", 0.0) > 0.0:
+                update_fields["commit_frequency_30d"] = signals["commit_frequency_30d"]
+            if update_fields:
+                component = component.model_copy(update=update_fields)  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
+        except Exception:
+            logger.debug("Git signals failed for %s", file_path, exc_info=True)
+
+        return component  # pyright: ignore[reportUnknownVariableType]
