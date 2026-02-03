@@ -98,3 +98,4 @@ Resume file: None
 - `57f6a36` feat(04-02): add flow-based pruning with 40%+ reduction
 - `1524ade` feat(04-03): add RRF score fusion for hybrid retrieval
 - `4e4679f` feat(04-03): add token-budgeted context assembler
+- `9063ffc` chore: remove unused RetrievalPath import in tests

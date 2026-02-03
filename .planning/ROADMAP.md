@@ -15,7 +15,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 - [x] **Phase 1: Foundation** - Project scaffolding, dependencies, embedding model pinning, dev tooling
 - [x] **Phase 2: Domain Models & Ingestion** - Pydantic entities and repository crawl/parse/extract pipeline
 - [x] **Phase 3: Memory Layer** - Graph store, vector store, and component memory subsystems
-- [ ] **Phase 4: Retrieval Nodes** - PPR engine, vector search, flow pruning, and score fusion
+- [x] **Phase 4: Retrieval Nodes** - PPR engine, vector search, flow pruning, and score fusion
 - [ ] **Phase 5: Retrieval Orchestrator** - Pipeline coordination, dependency resolution, conflict detection
 - [ ] **Phase 6: MCP Server & Installation** - FastMCP tools, component installation, rationale generation
 - [ ] **Phase 7: Integration & Validation** - End-to-end wiring, hyperparameter tuning, evaluation harness
@@ -144,7 +144,7 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 | 1. Foundation | 1/1 | Complete | 2026-02-02 |
 | 2. Domain Models & Ingestion | 3/3 | Complete | 2026-02-03 |
 | 3. Memory Layer | 3/3 | Complete | 2026-02-03 |
-| 4. Retrieval Nodes | 0/3 | In progress | - |
+| 4. Retrieval Nodes | 3/3 | Complete | 2026-02-03 |
 | 5. Retrieval Orchestrator | 0/2 | Not started | - |
 | 6. MCP Server & Installation | 0/2 | Not started | - |
 | 7. Integration & Validation | 0/3 | Not started | - |
