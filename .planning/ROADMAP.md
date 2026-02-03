@@ -12,9 +12,9 @@ This roadmap delivers a graph-based MCP server that accepts natural language tas
 
 Decimal phases appear between their surrounding integers in numeric order.
 
-- [ ] **Phase 1: Foundation** - Project scaffolding, dependencies, embedding model pinning, dev tooling
-- [ ] **Phase 2: Domain Models & Ingestion** - Pydantic entities and repository crawl/parse/extract pipeline
-- [ ] **Phase 3: Memory Layer** - Graph store, vector store, and component memory subsystems
+- [x] **Phase 1: Foundation** - Project scaffolding, dependencies, embedding model pinning, dev tooling
+- [x] **Phase 2: Domain Models & Ingestion** - Pydantic entities and repository crawl/parse/extract pipeline
+- [x] **Phase 3: Memory Layer** - Graph store, vector store, and component memory subsystems
 - [ ] **Phase 4: Retrieval Nodes** - PPR engine, vector search, flow pruning, and score fusion
 - [ ] **Phase 5: Retrieval Orchestrator** - Pipeline coordination, dependency resolution, conflict detection
 - [ ] **Phase 6: MCP Server & Installation** - FastMCP tools, component installation, rationale generation
@@ -34,7 +34,7 @@ Decimal phases appear between their surrounding integers in numeric order.
 **Plans**: 1 plan
 
 Plans:
-- [ ] 01-01-PLAN.md -- Scaffold project, install dependencies, configure dev tools, pin embedding model, verify all success criteria
+- [x] 01-01-PLAN.md -- Scaffold project, install dependencies, configure dev tools, pin embedding model, verify all success criteria
 
 ### Phase 2: Domain Models & Ingestion
 **Goal**: System can crawl any component repository and produce structured, deduplicated entity data ready for graph and vector storage
@@ -49,9 +49,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 02-01-PLAN.md -- Pydantic entity models (ComponentType, ComponentMetadata, GraphNode, GraphEdge, EdgeType) + new deps
-- [ ] 02-02-PLAN.md -- Repository crawlers, extraction strategies (davila7/flat/generic), frontmatter parser, git signals
-- [ ] 02-03-PLAN.md -- Two-phase entity resolution pipeline (fuzzy + embedding dedup) [TDD]
+- [x] 02-01-PLAN.md -- Pydantic entity models (ComponentType, ComponentMetadata, GraphNode, GraphEdge, EdgeType) + new deps
+- [x] 02-02-PLAN.md -- Repository crawlers, extraction strategies (davila7/flat/generic), frontmatter parser, git signals
+- [x] 02-03-PLAN.md -- Two-phase entity resolution pipeline (fuzzy + embedding dedup) [TDD]
 
 ### Phase 3: Memory Layer
 **Goal**: Ingested component data persists in graph and vector stores with PPR and similarity search operational
@@ -66,9 +66,9 @@ Plans:
 **Plans**: 3 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Graph store (NetworkX wrapper, PPR via built-in pagerank, Protocol abstraction)
-- [ ] 03-02-PLAN.md -- Vector store (FAISS IndexFlatIP with ID mapping, cosine similarity search)
-- [ ] 03-03-PLAN.md -- Component memory (usage tracking, co-selection patterns, JSON persistence)
+- [x] 03-01-PLAN.md -- Graph store (NetworkX wrapper, PPR via built-in pagerank, Protocol abstraction)
+- [x] 03-02-PLAN.md -- Vector store (FAISS IndexFlatIP with ID mapping, cosine similarity search)
+- [x] 03-03-PLAN.md -- Component memory (usage tracking, co-selection patterns, JSON persistence)
 
 ### Phase 4: Retrieval Nodes
 **Goal**: Individual retrieval strategies (vector, graph, pattern) each return relevant components independently
@@ -80,12 +80,12 @@ Plans:
   3. System returns ranked top-N results with relevance scores (default 5-10)
   4. PPR engine with adaptive alpha produces different traversal depths for specific vs broad queries
   5. Flow pruning reduces retrieved subgraph size by at least 40% compared to unpruned PPR output while retaining top-ranked components
-**Plans**: TBD
+**Plans**: 3 plans
 
 Plans:
-- [ ] 04-01: Query planner and vector search node
-- [ ] 04-02: PPR engine with adaptive alpha and flow pruner
-- [ ] 04-03: Score fusion (RRF), reranker, and context assembler
+- [ ] 04-01-PLAN.md -- Query planner and vector search node
+- [ ] 04-02-PLAN.md -- PPR engine with adaptive alpha and flow pruner
+- [ ] 04-03-PLAN.md -- Score fusion (RRF), reranker, and context assembler
 
 ### Phase 5: Retrieval Orchestrator
 **Goal**: System coordinates all retrieval strategies into a single pipeline that returns complete, conflict-free component sets for any task description
@@ -141,10 +141,10 @@ Phases execute in numeric order: 1 -> 2 -> 3 -> 4 -> 5 -> 6 -> 7
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. Foundation | 0/1 | Not started | - |
-| 2. Domain Models & Ingestion | 0/3 | Not started | - |
-| 3. Memory Layer | 0/3 | Not started | - |
-| 4. Retrieval Nodes | 0/3 | Not started | - |
+| 1. Foundation | 1/1 | Complete | 2026-02-02 |
+| 2. Domain Models & Ingestion | 3/3 | Complete | 2026-02-03 |
+| 3. Memory Layer | 3/3 | Complete | 2026-02-03 |
+| 4. Retrieval Nodes | 0/3 | In progress | - |
 | 5. Retrieval Orchestrator | 0/2 | Not started | - |
 | 6. MCP Server & Installation | 0/2 | Not started | - |
 | 7. Integration & Validation | 0/3 | Not started | - |
