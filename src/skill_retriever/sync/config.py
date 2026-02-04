@@ -16,7 +16,7 @@ class SyncConfig(BaseModel):
 
     # Polling settings
     poll_interval_seconds: int = Field(default=3600, description="Polling interval in seconds (default: 1 hour)")
-    poll_enabled: bool = Field(default=False, description="Enable polling for repos without webhooks")
+    poll_enabled: bool = Field(default=True, description="Enable polling for repos without webhooks")
 
     # Storage
     registry_path: Path = Field(
