@@ -72,17 +72,24 @@ def assemble_context(
             excluded_count=0,
         )
 
+    # Filter out stub nodes (auto-created by edges, have no real content)
+    valid_components = [
+        comp
+        for comp in ranked_components
+        if graph_store.get_node(comp.component_id) is not None
+    ]
+
     # Get component types for sorting
     def get_sort_key(comp: RankedComponent) -> tuple[int, float]:
         node = graph_store.get_node(comp.component_id)
-        # Unknown types go last (priority 999)
+        # Node guaranteed to exist after filtering, but satisfy type checker
         type_priority = (
             999 if node is None else TYPE_PRIORITY.get(node.component_type, 999)
         )
         # Negate score for descending order within same type
         return (type_priority, -comp.score)
 
-    sorted_components = sorted(ranked_components, key=get_sort_key)
+    sorted_components = sorted(valid_components, key=get_sort_key)
 
     included: list[RankedComponent] = []
     total_tokens = 0

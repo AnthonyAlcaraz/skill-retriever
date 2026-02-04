@@ -25,8 +25,13 @@ from skill_retriever.mcp.schemas import (
     IngestResult,
     InstallInput,
     InstallResult,
+    ListTrackedReposResult,
+    RegisterRepoInput,
     SearchInput,
     SearchResult,
+    SyncStatusResult,
+    TrackedRepo,
+    UnregisterRepoInput,
 )
 from skill_retriever.memory.component_memory import ComponentMemory
 from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
@@ -55,10 +60,14 @@ _graph_store: GraphStore | None = None
 _vector_store: FAISSVectorStore | None = None
 _metadata_store: MetadataStore | None = None
 _component_memory: ComponentMemory | None = None
+_sync_manager: "SyncManager | None" = None
 _init_lock = asyncio.Lock()
 
 # Path for component memory persistence
 _COMPONENT_MEMORY_PATH = Path(tempfile.gettempdir()) / "skill-retriever-memory.json"
+
+if TYPE_CHECKING:
+    from skill_retriever.sync.manager import SyncManager
 
 
 async def get_pipeline() -> RetrievalPipeline:
@@ -509,6 +518,138 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         components_deduplicated=dedup_count,
         errors=errors,
     )
+
+
+async def get_sync_manager() -> "SyncManager":
+    """Get or initialize the sync manager."""
+    global _sync_manager
+
+    async with _init_lock:
+        if _sync_manager is None:
+            from skill_retriever.sync.config import SYNC_CONFIG
+            from skill_retriever.sync.manager import SyncManager
+
+            graph_store = await get_graph_store()
+            vector_store = await get_vector_store()
+            metadata_store = await get_metadata_store()
+
+            _sync_manager = SyncManager(
+                config=SYNC_CONFIG,
+                graph_store=graph_store,
+                vector_store=vector_store,
+                metadata_store=metadata_store,
+            )
+            logger.info("Sync manager initialized")
+
+        return _sync_manager
+
+
+# ---------------------------------------------------------------------------
+# Sync management tools (SYNC-01, SYNC-02)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def register_repo(input: RegisterRepoInput) -> TrackedRepo:
+    """Register a repo for auto-sync."""
+    sync_manager = await get_sync_manager()
+
+    try:
+        owner, name = _parse_github_url(input.repo_url)
+    except ValueError as e:
+        raise ValueError(str(e)) from e
+
+    sync_manager.register_repo(
+        url=input.repo_url,
+        owner=owner,
+        name=name,
+        webhook_enabled=input.webhook_enabled,
+        poll_enabled=input.poll_enabled,
+    )
+
+    repo = sync_manager.registry.get(owner, name)
+    if not repo:
+        raise RuntimeError("Failed to register repo")
+
+    return TrackedRepo(
+        owner=repo.owner,
+        name=repo.name,
+        url=repo.url,
+        last_ingested=repo.last_ingested.isoformat() if repo.last_ingested else None,
+        last_commit_sha=repo.last_commit_sha,
+        webhook_enabled=repo.webhook_enabled,
+        poll_enabled=repo.poll_enabled,
+    )
+
+
+@mcp.tool
+async def unregister_repo(input: UnregisterRepoInput) -> bool:
+    """Unregister a repo from auto-sync."""
+    sync_manager = await get_sync_manager()
+    return sync_manager.unregister_repo(input.owner, input.name)
+
+
+@mcp.tool
+async def list_tracked_repos() -> ListTrackedReposResult:
+    """List all tracked repos."""
+    sync_manager = await get_sync_manager()
+    repos = sync_manager.registry.list_all()
+
+    tracked = [
+        TrackedRepo(
+            owner=r.owner,
+            name=r.name,
+            url=r.url,
+            last_ingested=r.last_ingested.isoformat() if r.last_ingested else None,
+            last_commit_sha=r.last_commit_sha,
+            webhook_enabled=r.webhook_enabled,
+            poll_enabled=r.poll_enabled,
+        )
+        for r in repos
+    ]
+
+    return ListTrackedReposResult(repos=tracked, total=len(tracked))
+
+
+@mcp.tool
+async def sync_status() -> SyncStatusResult:
+    """Get sync system status."""
+    from skill_retriever.sync.config import SYNC_CONFIG
+
+    sync_manager = await get_sync_manager()
+    repos = sync_manager.registry.list_all()
+
+    return SyncStatusResult(
+        webhook_server_running=sync_manager._webhook._site is not None,
+        webhook_port=SYNC_CONFIG.webhook_port,
+        polling_enabled=SYNC_CONFIG.poll_enabled,
+        poll_interval_seconds=SYNC_CONFIG.poll_interval_seconds,
+        tracked_repos=len(repos),
+    )
+
+
+@mcp.tool
+async def start_sync_server() -> str:
+    """Start webhook server and poller."""
+    sync_manager = await get_sync_manager()
+    await sync_manager.start()
+    return "Sync server started"
+
+
+@mcp.tool
+async def stop_sync_server() -> str:
+    """Stop webhook server and poller."""
+    sync_manager = await get_sync_manager()
+    await sync_manager.stop()
+    return "Sync server stopped"
+
+
+@mcp.tool
+async def poll_repos_now() -> str:
+    """Trigger immediate poll of all repos."""
+    sync_manager = await get_sync_manager()
+    await sync_manager.poll_now()
+    return "Poll completed"
 
 
 def main() -> None:

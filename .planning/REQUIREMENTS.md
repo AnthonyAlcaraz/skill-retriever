@@ -41,8 +41,8 @@ Partial implementation complete. Some features implemented, others deferred.
 
 ### Auto-Sync
 
-- **SYNC-01**: System watches configured repositories for changes (webhook or polling) — *Deferred*
-- **SYNC-02**: System auto-reingests repositories when upstream changes detected — *Deferred*
+- [x] **SYNC-01**: System watches configured repositories for changes (webhook or polling)
+- [x] **SYNC-02**: System auto-reingests repositories when upstream changes detected
 - [x] **SYNC-03**: Incremental ingestion updates only changed components (not full rebuild)
 
 ### Advanced Retrieval
@@ -97,9 +97,9 @@ Partial implementation complete. Some features implemented, others deferred.
 
 **Coverage:**
 - v1 requirements: 16 total (all complete)
-- v2 requirements implemented: 4 (SYNC-03, RETR-06, LRNG-03, HLTH-01)
-- v2 requirements deferred: 6
+- v2 requirements implemented: 6 (SYNC-01, SYNC-02, SYNC-03, RETR-06, LRNG-03, HLTH-01)
+- v2 requirements deferred: 4 (RETR-05, LRNG-01, LRNG-02, HLTH-02)
 
 ---
 *Requirements defined: 2026-02-02*
-*Last updated: 2026-02-03 after v2 partial implementation*
+*Last updated: 2026-02-04 after SYNC-01/SYNC-02 implementation*

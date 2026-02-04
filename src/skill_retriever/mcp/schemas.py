@@ -116,3 +116,52 @@ class IngestResult(BaseModel):
     components_skipped: int = Field(default=0, description="Unchanged components skipped")
     components_deduplicated: int = Field(default=0, description="Duplicates removed by entity resolution")
     errors: list[str]
+
+
+# ---------------------------------------------------------------------------
+# Sync management models (SYNC-01, SYNC-02)
+# ---------------------------------------------------------------------------
+
+
+class RegisterRepoInput(BaseModel):
+    """Input for register_repo tool."""
+
+    repo_url: str = Field(description="GitHub repository URL")
+    webhook_enabled: bool = Field(default=False, description="Webhook configured for this repo")
+    poll_enabled: bool = Field(default=True, description="Enable polling for changes")
+
+
+class UnregisterRepoInput(BaseModel):
+    """Input for unregister_repo tool."""
+
+    owner: str = Field(description="Repository owner")
+    name: str = Field(description="Repository name")
+
+
+class TrackedRepo(BaseModel):
+    """A tracked repository."""
+
+    owner: str
+    name: str
+    url: str
+    last_ingested: str | None = Field(default=None, description="ISO timestamp of last ingestion")
+    last_commit_sha: str | None = Field(default=None, description="SHA of last ingested commit")
+    webhook_enabled: bool
+    poll_enabled: bool
+
+
+class ListTrackedReposResult(BaseModel):
+    """Result of list_tracked_repos tool."""
+
+    repos: list[TrackedRepo]
+    total: int
+
+
+class SyncStatusResult(BaseModel):
+    """Result of sync_status tool."""
+
+    webhook_server_running: bool
+    webhook_port: int
+    polling_enabled: bool
+    poll_interval_seconds: int
+    tracked_repos: int

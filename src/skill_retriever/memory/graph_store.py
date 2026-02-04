@@ -67,13 +67,21 @@ class NetworkXGraphStore:
         self._graph.add_edge(edge.source_id, edge.target_id, **attrs)
 
     def get_node(self, node_id: str) -> GraphNode | None:
-        """Reconstruct a GraphNode from stored NX node data, or None if not found."""
+        """Reconstruct a GraphNode from stored NX node data, or None if not found.
+
+        Returns None for stub nodes (auto-created by edges) that lack required attributes.
+        """
         if node_id not in self._graph:
             return None
         from skill_retriever.entities.components import ComponentType
         from skill_retriever.entities.graph import GraphNode as _GraphNode
 
         data: dict[str, Any] = dict(self._graph.nodes[node_id])
+
+        # Stub nodes (auto-created by add_edge) lack required attributes
+        if "component_type" not in data or "label" not in data:
+            return None
+
         return _GraphNode(
             id=node_id,
             component_type=ComponentType(data["component_type"]),
