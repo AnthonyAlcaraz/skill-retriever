@@ -325,6 +325,60 @@ Repositories can be tracked for automatic updates:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### 6. Feedback Loop (LRNG-04, LRNG-05, LRNG-06)
+
+Execution outcomes feed back into the graph to improve future recommendations:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Feedback Loop                               │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │                 Outcome Tracking (LRNG-05)               │   │
+│  │                                                          │   │
+│  │  install_components()                                    │   │
+│  │         │                                                │   │
+│  │         ├── success → INSTALL_SUCCESS + bump usage       │   │
+│  │         └── failure → INSTALL_FAILURE + track context    │   │
+│  │                                                          │   │
+│  │  report_outcome()                                        │   │
+│  │         ├── USED_IN_SESSION → usage count++              │   │
+│  │         ├── REMOVED_BY_USER → negative feedback          │   │
+│  │         └── DEPRECATED → deprecation flag                │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Usage-Based Boosting (LRNG-04)              │   │
+│  │                                                          │   │
+│  │  Selection Rate Boost:                                   │   │
+│  │    high_selection_rate → +50% score boost                │   │
+│  │    low_selection_rate  → no boost                        │   │
+│  │                                                          │   │
+│  │  Co-Selection Boost:                                     │   │
+│  │    frequently_selected_together → +10% each (max 30%)    │   │
+│  │                                                          │   │
+│  │  Final score = base_score × boost_factor                 │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Feedback Engine (LRNG-06)                   │   │
+│  │                                                          │   │
+│  │  analyze_feedback() discovers patterns:                  │   │
+│  │                                                          │   │
+│  │  Co-selections (≥3) → suggest BUNDLES_WITH edge          │   │
+│  │  Co-failures (≥2)   → suggest CONFLICTS_WITH edge        │   │
+│  │                                                          │   │
+│  │  Human reviews suggestions via review_suggestion()       │   │
+│  │  Accepted suggestions → apply_feedback_suggestions()     │   │
+│  │  New edges added to graph with confidence scores         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key insight**: The system learns from real-world usage. Components that work well together get boosted. Components that fail together get flagged as conflicts. This creates a self-improving recommendation engine.
+
 ## Integration with Claude Code
 
 ### Setup
@@ -353,7 +407,7 @@ Once configured, Claude Code can use these tools:
 | **Search & Install** | |
 | `search_components` | Find components for a task description |
 | `get_component_detail` | Get full info about a specific component |
-| `install_components` | Install components to `.claude/` |
+| `install_components` | Install components to `.claude/` (auto-records outcome) |
 | `check_dependencies` | Check deps and conflicts before install |
 | **Ingestion** | |
 | `ingest_repo` | Index a new component repository |
@@ -371,6 +425,15 @@ Once configured, Claude Code can use these tools:
 | `get_pipeline_status` | Get discovery pipeline configuration |
 | `get_heal_status` | View auto-heal failures and status |
 | `clear_heal_failures` | Clear tracked failures |
+| **Outcome Tracking** | |
+| `report_outcome` | Record usage outcome (used, removed, deprecated) |
+| `get_outcome_stats` | Get success/failure stats for a component |
+| `get_outcome_report` | View problematic components and conflicts |
+| **Feedback Engine** | |
+| `analyze_feedback` | Analyze patterns to suggest graph improvements |
+| `get_feedback_suggestions` | View pending edge suggestions |
+| `review_suggestion` | Accept or reject a suggested edge |
+| `apply_feedback_suggestions` | Apply accepted suggestions to the graph |
 
 ### Example Conversation
 
@@ -456,7 +519,11 @@ You can now use `/commit` to create conventional commits!
 - OSS-01: GitHub-based repository discovery (OSS Scout)
 - HEAL-01: Auto-heal for failed ingestions with retry logic
 - RETR-06: Abstraction level awareness
+- RETR-07: Fuzzy entity extraction with RapidFuzz + synonym expansion
 - LRNG-03: Co-occurrence tracking
+- LRNG-04: Usage-based score boosting (selection rate + co-selection)
+- LRNG-05: Outcome tracking (install success/failure, usage, removal)
+- LRNG-06: Feedback engine for implicit edge discovery
 - HLTH-01: Component health status
 
 ### Deferred
