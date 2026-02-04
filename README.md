@@ -468,7 +468,94 @@ Scans components for security vulnerabilities during ingestion and on-demand:
 **Known Limitations:**
 - The `shell_injection` pattern has false positives for bash code blocks in markdown
 - Webhook patterns flag legitimate integrations (Discord bots, Slack notifications)
-- Future: LLM-assisted false positive reduction (SEC-02)
+
+### 8. LLM-Assisted Security Analysis (SEC-02)
+
+Optional layer on top of regex scanning that uses Claude to reduce false positives:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│               LLM Security Analyzer (SEC-02)                     │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              When to Use                                  │   │
+│  │                                                          │   │
+│  │  - Component flagged HIGH/CRITICAL by regex scanner      │   │
+│  │  - Suspected false positives (shell commands in docs)    │   │
+│  │  - Need confidence before installing critical component  │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Analysis Process                             │   │
+│  │                                                          │   │
+│  │  1. Run regex scan (SEC-01) to get findings              │   │
+│  │  2. Send findings + component content to Claude          │   │
+│  │  3. Claude analyzes each finding:                        │   │
+│  │     - Is it in documentation vs executable code?         │   │
+│  │     - Is it legitimate functionality (JWT accessing env)?│   │
+│  │     - Context: webhook in notification skill = expected  │   │
+│  │  4. Returns verdict per finding:                         │   │
+│  │     - TRUE_POSITIVE: Real security concern               │   │
+│  │     - FALSE_POSITIVE: Safe, incorrectly flagged          │   │
+│  │     - CONTEXT_DEPENDENT: Depends on usage                │   │
+│  │     - NEEDS_REVIEW: Cannot determine, human review       │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Adjusted Risk Score                          │   │
+│  │                                                          │   │
+│  │  Original score = 75 (CRITICAL, 5 findings)              │   │
+│  │                                                          │   │
+│  │  LLM analysis:                                           │   │
+│  │    - 3 × FALSE_POSITIVE (bash in markdown)              │   │
+│  │    - 1 × TRUE_POSITIVE (env var harvesting)             │   │
+│  │    - 1 × CONTEXT_DEPENDENT                               │   │
+│  │                                                          │   │
+│  │  Adjusted score = 75 × (1 + 0.5) / 5 = 22.5 (MEDIUM)    │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Requirements:**
+- `ANTHROPIC_API_KEY` environment variable set
+- `anthropic` package installed (included in dependencies)
+
+**Usage:**
+```bash
+# Full LLM analysis of a flagged component
+security_scan_llm(component_id="owner/repo/skill/name")
+
+# Returns:
+{
+  "component_id": "...",
+  "llm_available": true,
+  "original_risk_level": "critical",
+  "adjusted_risk_level": "medium",
+  "original_risk_score": 75.0,
+  "adjusted_risk_score": 22.5,
+  "finding_analyses": [
+    {
+      "pattern_name": "shell_injection",
+      "verdict": "false_positive",
+      "confidence": 0.95,
+      "reasoning": "Pattern in markdown code block showing CLI usage",
+      "is_in_documentation": true,
+      "mitigations": []
+    }
+  ],
+  "overall_assessment": "Low actual risk...",
+  "false_positive_count": 3,
+  "true_positive_count": 1,
+  "context_dependent_count": 1
+}
+```
+
+**Cost Consideration:** LLM analysis uses Claude API calls (~2000 tokens per component). Use selectively for:
+- Components you plan to install
+- HIGH/CRITICAL flagged components
+- Components with many findings that may be false positives
 
 ## Integration with Claude Code
 
@@ -526,7 +613,8 @@ Once configured, Claude Code can use these tools:
 | `review_suggestion` | Accept or reject a suggested edge |
 | `apply_feedback_suggestions` | Apply accepted suggestions to the graph |
 | **Security Scanning** | |
-| `security_scan` | Scan a specific component for vulnerabilities |
+| `security_scan` | Scan a specific component for vulnerabilities (regex) |
+| `security_scan_llm` | Scan with LLM false-positive reduction (requires API key) |
 | `security_audit` | Audit all components, report by risk level |
 | `backfill_security_scans` | Scan existing components that haven't been scanned |
 
@@ -731,12 +819,13 @@ Claude: [Calls backfill_security_scans(force_rescan=false)]
 - LRNG-06: Feedback engine for implicit edge discovery
 - HLTH-01: Component health status
 - SEC-01: Security vulnerability scanning (based on Yi Liu et al. research)
+- SEC-02: LLM-assisted false positive reduction for security scanning
 
 ### Deferred
 - RETR-05: LLM-assisted query rewriting
 - LRNG-01/02: Collaborative filtering from usage patterns
 - HLTH-02: Deprecation warnings
-- SEC-02: LLM-assisted false positive reduction for security scanning
+- SEC-02: LLM-assisted false positive reduction ✅ IMPLEMENTED
 - SEC-03: Real-time re-scanning of installed components
 
 ## Troubleshooting

@@ -395,3 +395,41 @@ class BackfillSecurityResult(BaseModel):
     high_risk_count: int
     critical_risk_count: int
     errors: list[str] = Field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# LLM Security Analysis models (SEC-02)
+# ---------------------------------------------------------------------------
+
+
+class LLMSecurityScanInput(BaseModel):
+    """Input for security_scan_llm tool."""
+
+    component_id: str = Field(description="Component ID to analyze")
+
+
+class LLMFindingAnalysisResult(BaseModel):
+    """LLM analysis of a single finding."""
+
+    pattern_name: str
+    verdict: str = Field(description="true_positive, false_positive, context_dependent, needs_review")
+    confidence: float = Field(description="0.0-1.0 confidence in verdict")
+    reasoning: str = Field(description="Explanation of the verdict")
+    is_in_documentation: bool = Field(description="Pattern is in docs/examples, not executable")
+    mitigations: list[str] = Field(default_factory=list, description="Suggested fixes if true positive")
+
+
+class LLMSecurityScanResult(BaseModel):
+    """Result of LLM-assisted security scan."""
+
+    component_id: str
+    llm_available: bool = Field(description="Whether LLM analysis was performed")
+    original_risk_level: str
+    adjusted_risk_level: str
+    original_risk_score: float
+    adjusted_risk_score: float
+    finding_analyses: list[LLMFindingAnalysisResult] = Field(default_factory=list)
+    overall_assessment: str = Field(default="")
+    false_positive_count: int = 0
+    true_positive_count: int = 0
+    context_dependent_count: int = 0

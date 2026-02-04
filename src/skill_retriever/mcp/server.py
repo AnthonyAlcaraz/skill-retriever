@@ -44,6 +44,9 @@ from skill_retriever.mcp.schemas import (
     SearchResult,
     BackfillSecurityInput,
     BackfillSecurityResult,
+    LLMFindingAnalysisResult,
+    LLMSecurityScanInput,
+    LLMSecurityScanResult,
     SecurityAuditInput,
     SecurityAuditResult,
     SecurityFindingResult,
@@ -1322,6 +1325,97 @@ async def backfill_security_scans(input: BackfillSecurityInput) -> BackfillSecur
         high_risk_count=high,
         critical_risk_count=critical,
         errors=errors[:20],  # Limit errors
+    )
+
+
+@mcp.tool
+async def security_scan_llm(input: LLMSecurityScanInput) -> LLMSecurityScanResult:
+    """Scan a component with LLM-assisted false positive reduction (SEC-02).
+
+    First runs regex-based scan (SEC-01), then uses Claude to analyze
+    each finding and determine if it's a true or false positive.
+
+    Requires ANTHROPIC_API_KEY environment variable.
+    """
+    from skill_retriever.security import LLMSecurityAnalyzer, SecurityScanner
+
+    metadata_store = await get_metadata_store()
+    component = metadata_store.get(input.component_id)
+
+    if component is None:
+        return LLMSecurityScanResult(
+            component_id=input.component_id,
+            llm_available=False,
+            original_risk_level="unknown",
+            adjusted_risk_level="unknown",
+            original_risk_score=0.0,
+            adjusted_risk_score=0.0,
+            overall_assessment="Component not found",
+        )
+
+    # First run regex-based scan
+    scanner = SecurityScanner()
+    scan_result = scanner.scan_component(component)
+
+    # Then run LLM analysis
+    analyzer = LLMSecurityAnalyzer()
+
+    if not analyzer.is_available:
+        # Return regex results without LLM analysis
+        return LLMSecurityScanResult(
+            component_id=input.component_id,
+            llm_available=False,
+            original_risk_level=scan_result.risk_level.value,
+            adjusted_risk_level=scan_result.risk_level.value,
+            original_risk_score=scan_result.risk_score,
+            adjusted_risk_score=scan_result.risk_score,
+            overall_assessment="LLM analysis unavailable (ANTHROPIC_API_KEY not set)",
+        )
+
+    # Run LLM analysis
+    llm_result = await analyzer.analyze(
+        scan_result,
+        component.raw_content,
+        component.name,
+        component.description,
+    )
+
+    if llm_result is None:
+        return LLMSecurityScanResult(
+            component_id=input.component_id,
+            llm_available=True,
+            original_risk_level=scan_result.risk_level.value,
+            adjusted_risk_level=scan_result.risk_level.value,
+            original_risk_score=scan_result.risk_score,
+            adjusted_risk_score=scan_result.risk_score,
+            overall_assessment="LLM analysis failed",
+        )
+
+    # Convert finding analyses to result format
+    finding_analyses = [
+        LLMFindingAnalysisResult(
+            pattern_name=fa.pattern_name,
+            verdict=fa.verdict.value,
+            confidence=fa.confidence,
+            reasoning=fa.reasoning,
+            is_in_documentation=fa.is_in_documentation,
+            mitigations=fa.mitigations,
+        )
+        for fa in llm_result.finding_analyses
+    ]
+
+    return LLMSecurityScanResult(
+        component_id=input.component_id,
+        llm_available=True,
+        original_risk_level=llm_result.original_risk_level,
+        adjusted_risk_level=llm_result.adjusted_risk_level,
+        original_risk_score=llm_result.original_risk_score,
+        adjusted_risk_score=llm_result.adjusted_risk_score,
+        finding_analyses=finding_analyses,
+        overall_assessment=llm_result.overall_assessment,
+        false_positive_count=llm_result.false_positive_count,
+        true_positive_count=llm_result.true_positive_count,
+        context_dependent_count=llm_result.context_dependent_count,
     )
 
 
