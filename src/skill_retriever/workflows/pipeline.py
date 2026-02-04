@@ -28,6 +28,7 @@ from skill_retriever.workflows.models import ConflictInfo, PipelineResult
 
 if TYPE_CHECKING:
     from skill_retriever.entities.components import ComponentType
+    from skill_retriever.memory.component_memory import ComponentMemory
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
 
@@ -63,6 +64,7 @@ class RetrievalPipeline:
         self,
         graph_store: GraphStore,
         vector_store: FAISSVectorStore,
+        component_memory: ComponentMemory | None = None,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
         cache_size: int = DEFAULT_CACHE_SIZE,
     ) -> None:
@@ -71,11 +73,13 @@ class RetrievalPipeline:
         Args:
             graph_store: Graph store for PPR and component lookup.
             vector_store: FAISS vector store for semantic search.
+            component_memory: Optional component memory for usage-based ranking (LRNG-04).
             token_budget: Maximum tokens for context assembly.
             cache_size: LRU cache size for query results.
         """
         self._graph_store = graph_store
         self._vector_store = vector_store
+        self._component_memory = component_memory
         self._token_budget = token_budget
         self._cache_size = cache_size
 
@@ -157,11 +161,12 @@ class RetrievalPipeline:
 
             graph_results = ppr_results
 
-        # Stage 4: Score fusion
+        # Stage 4: Score fusion with usage-based boosting (LRNG-04)
         fused_results = fuse_retrieval_results(
             vector_results,
             graph_results,
             self._graph_store,
+            component_memory=self._component_memory,
             component_type=component_type,
             top_k=top_k,
         )
