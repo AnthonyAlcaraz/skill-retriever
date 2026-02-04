@@ -241,3 +241,72 @@ class PipelineStatusResult(BaseModel):
     min_score: float
     max_new_repos: int
     heal_status: HealStatusResult
+
+
+# ---------------------------------------------------------------------------
+# Outcome tracking models (LRNG-05)
+# ---------------------------------------------------------------------------
+
+
+class ReportOutcomeInput(BaseModel):
+    """Input for report_outcome tool."""
+
+    component_id: str = Field(description="Component ID")
+    outcome: str = Field(description="Outcome type: used, removed, deprecated")
+    context: str = Field(default="", description="Optional context")
+
+
+class OutcomeStatsResult(BaseModel):
+    """Outcome statistics for a component."""
+
+    component_id: str
+    install_successes: int
+    install_failures: int
+    usage_count: int
+    removal_count: int
+    success_rate: float
+
+
+class OutcomeReportResult(BaseModel):
+    """Result of get_outcome_report tool."""
+
+    total_components: int
+    problematic_components: list[str] = Field(description="Components with low success rates")
+    frequently_removed: list[str] = Field(description="Components often removed by users")
+    potential_conflicts: list[tuple[str, str, int]] = Field(
+        description="(component_a, component_b, co_failure_count) tuples"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Feedback engine models (LRNG-06)
+# ---------------------------------------------------------------------------
+
+
+class EdgeSuggestionResult(BaseModel):
+    """An edge suggestion from the feedback engine."""
+
+    suggestion_type: str = Field(description="bundles_with, conflicts_with, etc.")
+    source_id: str
+    target_id: str
+    confidence: float
+    evidence: str
+    reviewed: bool
+
+
+class FeedbackStatusResult(BaseModel):
+    """Result of get_feedback_status tool."""
+
+    pending_suggestions: int
+    total_suggestions: int
+    applied_count: int
+    last_analysis: str | None
+
+
+class ReviewSuggestionInput(BaseModel):
+    """Input for review_suggestion tool."""
+
+    source_id: str = Field(description="Source component ID")
+    target_id: str = Field(description="Target component ID")
+    suggestion_type: str = Field(description="bundles_with or conflicts_with")
+    accept: bool = Field(description="Whether to accept the suggestion")

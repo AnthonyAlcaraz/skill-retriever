@@ -22,7 +22,9 @@ from skill_retriever.mcp.schemas import (
     DependencyCheckResult,
     DiscoveredRepo,
     DiscoverReposResult,
+    EdgeSuggestionResult,
     FailedRepo,
+    FeedbackStatusResult,
     HealStatusResult,
     HealthStatus,
     IngestInput,
@@ -30,9 +32,13 @@ from skill_retriever.mcp.schemas import (
     InstallInput,
     InstallResult,
     ListTrackedReposResult,
+    OutcomeReportResult,
+    OutcomeStatsResult,
     PipelineRunResult,
     PipelineStatusResult,
     RegisterRepoInput,
+    ReportOutcomeInput,
+    ReviewSuggestionInput,
     RunPipelineInput,
     SearchInput,
     SearchResult,
@@ -67,8 +73,12 @@ _graph_store: GraphStore | None = None
 _vector_store: FAISSVectorStore | None = None
 _metadata_store: MetadataStore | None = None
 _component_memory: ComponentMemory | None = None
+_outcome_tracker: "OutcomeTracker | None" = None
 _sync_manager: "SyncManager | None" = None
 _init_lock = asyncio.Lock()
+
+if TYPE_CHECKING:
+    from skill_retriever.memory.outcome_tracker import OutcomeTracker
 
 # Persistent storage directory (survives restarts)
 _STORAGE_DIR = Path.home() / ".skill-retriever" / "data"
@@ -79,21 +89,26 @@ _GRAPH_PATH = _STORAGE_DIR / "graph.json"
 _VECTOR_DIR = _STORAGE_DIR / "vectors"
 _METADATA_PATH = _STORAGE_DIR / "metadata.json"
 _COMPONENT_MEMORY_PATH = _STORAGE_DIR / "component-memory.json"
+_OUTCOME_TRACKER_PATH = _STORAGE_DIR / "outcome-tracker.json"
 _INGESTION_CACHE_PATH = _STORAGE_DIR / "ingestion-cache.json"
 
 if TYPE_CHECKING:
+    from skill_retriever.memory.outcome_tracker import OutcomeTracker
     from skill_retriever.sync.manager import SyncManager
 
 
 async def get_pipeline() -> RetrievalPipeline:
     """Get or initialize the retrieval pipeline, loading from persistent storage."""
-    global _pipeline, _graph_store, _vector_store, _metadata_store, _component_memory
+    global _pipeline, _graph_store, _vector_store, _metadata_store, _component_memory, _outcome_tracker
 
     async with _init_lock:
         if _pipeline is None:
             from skill_retriever.memory.graph_store import NetworkXGraphStore
             from skill_retriever.memory.metadata_store import (
                 MetadataStore as MetaStore,
+            )
+            from skill_retriever.memory.outcome_tracker import (
+                OutcomeTracker as OTracker,
             )
             from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
             from skill_retriever.workflows.pipeline import RetrievalPipeline
@@ -118,14 +133,24 @@ async def get_pipeline() -> RetrievalPipeline:
                 except Exception:
                     logger.exception("Failed to load vector store, starting fresh")
 
-            _pipeline = RetrievalPipeline(_graph_store, _vector_store)
+            # Initialize component memory for usage tracking (LRNG-03)
+            _component_memory = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
+
+            # Initialize outcome tracker for execution feedback (LRNG-05)
+            _outcome_tracker = OTracker.load(str(_OUTCOME_TRACKER_PATH))
+            logger.info(
+                "Loaded outcome tracker: %d components tracked",
+                len(_outcome_tracker.outcomes)
+            )
+
+            _pipeline = RetrievalPipeline(
+                _graph_store, _vector_store, component_memory=_component_memory
+            )
 
             # Initialize metadata store with persistent path
             _metadata_store = MetaStore(_METADATA_PATH)
             logger.info("Loaded metadata store: %d components", len(_metadata_store))
 
-            # Initialize component memory for usage tracking (LRNG-03)
-            _component_memory = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
             logger.info("Pipeline initialized with persistent storage at %s", _STORAGE_DIR)
 
         return _pipeline
@@ -157,6 +182,13 @@ async def get_component_memory() -> ComponentMemory:
     await get_pipeline()  # Ensures stores are initialized
     assert _component_memory is not None
     return _component_memory
+
+
+async def get_outcome_tracker() -> "OutcomeTracker":
+    """Get the outcome tracker for execution feedback (LRNG-05)."""
+    await get_pipeline()  # Ensures stores are initialized
+    assert _outcome_tracker is not None
+    return _outcome_tracker
 
 
 def _compute_health_status(metadata: "ComponentMetadata") -> HealthStatus:
@@ -322,10 +354,12 @@ async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
 async def install_components(input: InstallInput) -> InstallResult:
     """Install components to .claude/."""
     from skill_retriever.mcp.installer import ComponentInstaller
+    from skill_retriever.memory.outcome_tracker import OutcomeType
 
     graph_store = await get_graph_store()
     metadata_store = await get_metadata_store()
     component_memory = await get_component_memory()
+    outcome_tracker = await get_outcome_tracker()
 
     # Determine target directory
     target_dir = Path(input.target_dir).resolve()
@@ -340,6 +374,23 @@ async def install_components(input: InstallInput) -> InstallResult:
         component_ids=input.component_ids,
         auto_resolve_deps=True,
     )
+
+    # Record outcomes for feedback loop (LRNG-05)
+    for result in report.installed:
+        if result.success:
+            outcome_tracker.record_outcome(
+                result.component_id,
+                OutcomeType.INSTALL_SUCCESS,
+            )
+        else:
+            outcome_tracker.record_outcome(
+                result.component_id,
+                OutcomeType.INSTALL_FAILURE,
+                context=result.error or "Unknown error",
+            )
+
+    # Persist outcome tracker
+    outcome_tracker.save(str(_OUTCOME_TRACKER_PATH))
 
     # Record selections for co-occurrence tracking (LRNG-03)
     installed_ids = [r.component_id for r in report.installed if r.success]
@@ -837,6 +888,173 @@ async def clear_heal_failures() -> str:
     healer._save_state()
 
     return f"Cleared {count} failure records"
+
+
+# ---------------------------------------------------------------------------
+# Outcome tracking tools (LRNG-05)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def report_outcome(input: ReportOutcomeInput) -> str:
+    """Report a component outcome (used, removed, deprecated)."""
+    from skill_retriever.memory.outcome_tracker import OutcomeType
+
+    outcome_tracker = await get_outcome_tracker()
+
+    # Map string to OutcomeType
+    outcome_map = {
+        "used": OutcomeType.USED_IN_SESSION,
+        "removed": OutcomeType.REMOVED_BY_USER,
+        "deprecated": OutcomeType.DEPRECATED,
+    }
+
+    outcome_type = outcome_map.get(input.outcome.lower())
+    if outcome_type is None:
+        return f"Invalid outcome type: {input.outcome}. Use: used, removed, deprecated"
+
+    outcome_tracker.record_outcome(
+        input.component_id,
+        outcome_type,
+        context=input.context,
+    )
+    outcome_tracker.save(str(_OUTCOME_TRACKER_PATH))
+
+    return f"Recorded {input.outcome} outcome for {input.component_id}"
+
+
+@mcp.tool
+async def get_outcome_stats(component_id: str) -> OutcomeStatsResult:
+    """Get outcome statistics for a component."""
+    outcome_tracker = await get_outcome_tracker()
+
+    stats = outcome_tracker.outcomes.get(component_id)
+    if stats is None:
+        return OutcomeStatsResult(
+            component_id=component_id,
+            install_successes=0,
+            install_failures=0,
+            usage_count=0,
+            removal_count=0,
+            success_rate=0.0,
+        )
+
+    return OutcomeStatsResult(
+        component_id=component_id,
+        install_successes=stats.install_successes,
+        install_failures=stats.install_failures,
+        usage_count=stats.usage_count,
+        removal_count=stats.removal_count,
+        success_rate=stats.success_rate,
+    )
+
+
+@mcp.tool
+async def get_outcome_report() -> OutcomeReportResult:
+    """Get overall outcome report with problematic components."""
+    outcome_tracker = await get_outcome_tracker()
+
+    return OutcomeReportResult(
+        total_components=len(outcome_tracker.outcomes),
+        problematic_components=outcome_tracker.get_problematic_components(),
+        frequently_removed=outcome_tracker.get_frequently_removed(),
+        potential_conflicts=outcome_tracker.get_co_failure_pairs(),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Feedback engine tools (LRNG-06)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def analyze_feedback() -> FeedbackStatusResult:
+    """Analyze usage patterns and generate edge suggestions."""
+    from skill_retriever.memory.feedback_engine import FeedbackEngine
+
+    component_memory = await get_component_memory()
+    outcome_tracker = await get_outcome_tracker()
+
+    engine = FeedbackEngine()
+    engine.analyze(component_memory, outcome_tracker)
+    status = engine.get_status()
+
+    return FeedbackStatusResult(
+        pending_suggestions=status["pending_suggestions"],
+        total_suggestions=status["total_suggestions"],
+        applied_count=status["applied_count"],
+        last_analysis=status["last_analysis"],
+    )
+
+
+@mcp.tool
+async def get_feedback_suggestions() -> list[EdgeSuggestionResult]:
+    """Get pending edge suggestions from feedback analysis."""
+    from skill_retriever.memory.feedback_engine import FeedbackEngine
+
+    engine = FeedbackEngine()
+    suggestions = engine.get_pending_suggestions()
+
+    return [
+        EdgeSuggestionResult(
+            suggestion_type=s.suggestion_type.value,
+            source_id=s.source_id,
+            target_id=s.target_id,
+            confidence=s.confidence,
+            evidence=s.evidence,
+            reviewed=s.reviewed,
+        )
+        for s in suggestions
+    ]
+
+
+@mcp.tool
+async def review_suggestion(input: ReviewSuggestionInput) -> str:
+    """Review a pending edge suggestion (accept or reject)."""
+    from skill_retriever.memory.feedback_engine import FeedbackEngine, SuggestionType
+
+    engine = FeedbackEngine()
+
+    # Map string to enum
+    type_map = {
+        "bundles_with": SuggestionType.BUNDLES_WITH,
+        "conflicts_with": SuggestionType.CONFLICTS_WITH,
+        "supersedes": SuggestionType.SUPERSEDES,
+        "strengthen": SuggestionType.STRENGTHEN,
+        "weaken": SuggestionType.WEAKEN,
+    }
+
+    suggestion_type = type_map.get(input.suggestion_type.lower())
+    if suggestion_type is None:
+        return f"Invalid suggestion type: {input.suggestion_type}"
+
+    success = engine.review_suggestion(
+        input.source_id,
+        input.target_id,
+        suggestion_type,
+        input.accept,
+    )
+
+    if success:
+        return f"{'Accepted' if input.accept else 'Rejected'} suggestion: {input.suggestion_type} {input.source_id}->{input.target_id}"
+    return "Suggestion not found or already reviewed"
+
+
+@mcp.tool
+async def apply_feedback_suggestions() -> str:
+    """Apply all accepted suggestions to the graph."""
+    from skill_retriever.memory.feedback_engine import FeedbackEngine
+
+    graph_store = await get_graph_store()
+    engine = FeedbackEngine()
+
+    applied_count = engine.apply_accepted_suggestions(graph_store)
+
+    if applied_count > 0:
+        # Persist updated graph
+        graph_store.save(str(_GRAPH_PATH))
+
+    return f"Applied {applied_count} suggestions to graph"
 
 
 def main() -> None:
