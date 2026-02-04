@@ -42,15 +42,21 @@ from skill_retriever.mcp.schemas import (
     RunPipelineInput,
     SearchInput,
     SearchResult,
+    SecurityAuditInput,
+    SecurityAuditResult,
+    SecurityFindingResult,
+    SecurityScanInput,
+    SecurityScanResult,
+    SecurityStatus,
     SyncStatusResult,
     TrackedRepo,
     UnregisterRepoInput,
 )
+from skill_retriever.entities.components import ComponentMetadata
 from skill_retriever.memory.component_memory import ComponentMemory
 from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
 
 if TYPE_CHECKING:
-    from skill_retriever.entities.components import ComponentMetadata
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.metadata_store import MetadataStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
@@ -267,9 +273,17 @@ async def search_components(input: SearchInput) -> SearchResult:
 
         # Get health status from metadata (HLTH-01)
         health = None
+        security = None
         metadata = metadata_store.get(comp.component_id)
         if metadata:
             health = _compute_health_status(metadata)
+            # Get security status (SEC-01)
+            security = SecurityStatus(
+                risk_level=metadata.security_risk_level,
+                risk_score=metadata.security_risk_score,
+                findings_count=metadata.security_findings_count,
+                has_scripts=metadata.has_scripts,
+            )
 
         # Record recommendation for usage tracking (LRNG-03)
         component_memory.record_recommendation(comp.component_id)
@@ -283,6 +297,7 @@ async def search_components(input: SearchInput) -> SearchResult:
                 rationale=rationale,
                 token_cost=token_cost,
                 health=health,
+                security=security,
             )
         )
 
@@ -534,6 +549,43 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         dedup_count = raw_count - len(components)
         if dedup_count > 0:
             logger.info("Entity resolution removed %d duplicates", dedup_count)
+
+        # Security scan all components (SEC-01)
+        from skill_retriever.security import SecurityScanner
+
+        scanner = SecurityScanner()
+        scanned_components: list[ComponentMetadata] = []
+        for comp in components:
+            scan_result = scanner.scan_component(comp)
+            # Create new component with security fields populated
+            scanned_comp = ComponentMetadata(
+                id=comp.id,
+                name=comp.name,
+                component_type=comp.component_type,
+                description=comp.description,
+                tags=list(comp.tags),
+                author=comp.author,
+                version=comp.version,
+                last_updated=comp.last_updated,
+                commit_count=comp.commit_count,
+                commit_frequency_30d=comp.commit_frequency_30d,
+                raw_content=comp.raw_content,
+                parameters=dict(comp.parameters),
+                dependencies=list(comp.dependencies),
+                tools=list(comp.tools),
+                source_repo=comp.source_repo,
+                source_path=comp.source_path,
+                category=comp.category,
+                install_url=comp.install_url,
+                # Security fields
+                security_risk_level=scan_result.risk_level.value,
+                security_risk_score=scan_result.risk_score,
+                security_findings_count=scan_result.finding_count,
+                has_scripts=scan_result.has_scripts,
+            )
+            scanned_components.append(scanned_comp)
+        components = scanned_components
+        logger.info("Security scanned %d components", len(components))
 
         # Add to graph store
         from skill_retriever.entities.graph import GraphEdge, GraphNode
@@ -1055,6 +1107,122 @@ async def apply_feedback_suggestions() -> str:
         graph_store.save(str(_GRAPH_PATH))
 
     return f"Applied {applied_count} suggestions to graph"
+
+
+# ---------------------------------------------------------------------------
+# Security scanning tools (SEC-01)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def security_scan(input: SecurityScanInput) -> SecurityScanResult:
+    """Scan a component for security vulnerabilities."""
+    from skill_retriever.security import SecurityScanner
+
+    metadata_store = await get_metadata_store()
+    component = metadata_store.get(input.component_id)
+
+    if component is None:
+        return SecurityScanResult(
+            component_id=input.component_id,
+            risk_level="unknown",
+            risk_score=0.0,
+            findings=[],
+            has_scripts=False,
+            is_safe=False,
+        )
+
+    scanner = SecurityScanner()
+    result = scanner.scan_component(component)
+
+    # Convert findings to schema format
+    findings = [
+        SecurityFindingResult(
+            pattern_name=f.pattern_name,
+            category=f.category,
+            risk_level=f.risk_level.value,
+            description=f.description,
+            matched_text=f.matched_text,
+            line_number=f.line_number,
+            cwe_id=f.cwe_id,
+        )
+        for f in result.findings
+    ]
+
+    return SecurityScanResult(
+        component_id=result.component_id,
+        risk_level=result.risk_level.value,
+        risk_score=result.risk_score,
+        findings=findings,
+        has_scripts=result.has_scripts,
+        is_safe=result.is_safe,
+    )
+
+
+@mcp.tool
+async def security_audit(input: SecurityAuditInput) -> SecurityAuditResult:
+    """Audit all indexed components for security vulnerabilities."""
+    from skill_retriever.security import RiskLevel
+
+    metadata_store = await get_metadata_store()
+
+    # Map threshold string to enum
+    threshold_map = {
+        "low": RiskLevel.LOW,
+        "medium": RiskLevel.MEDIUM,
+        "high": RiskLevel.HIGH,
+        "critical": RiskLevel.CRITICAL,
+    }
+    threshold = threshold_map.get(input.risk_level.lower(), RiskLevel.MEDIUM)
+
+    # Collect stats
+    total = 0
+    safe = 0
+    low = 0
+    medium = 0
+    high = 0
+    critical = 0
+    flagged: list[str] = []
+    finding_counts: dict[str, int] = {}
+
+    for comp_id, component in metadata_store._components.items():
+        total += 1
+        risk_level = component.security_risk_level
+
+        if risk_level == "safe" or risk_level == "unknown":
+            safe += 1
+        elif risk_level == "low":
+            low += 1
+            if threshold == RiskLevel.LOW:
+                flagged.append(comp_id)
+        elif risk_level == "medium":
+            medium += 1
+            if threshold in (RiskLevel.LOW, RiskLevel.MEDIUM):
+                flagged.append(comp_id)
+        elif risk_level == "high":
+            high += 1
+            if threshold in (RiskLevel.LOW, RiskLevel.MEDIUM, RiskLevel.HIGH):
+                flagged.append(comp_id)
+        elif risk_level == "critical":
+            critical += 1
+            flagged.append(comp_id)
+
+    # Note: We don't have individual findings stored in metadata,
+    # so top_findings will be empty for now
+    # In future: could re-scan flagged components to get findings
+    top_findings: list[SecurityFindingResult] = []
+
+    return SecurityAuditResult(
+        total_components=total,
+        scanned_count=total,
+        safe_count=safe,
+        low_risk_count=low,
+        medium_risk_count=medium,
+        high_risk_count=high,
+        critical_risk_count=critical,
+        flagged_components=flagged[:50],  # Limit to 50
+        top_findings=top_findings,
+    )
 
 
 def main() -> None:

@@ -56,6 +56,15 @@ class HealthStatus(BaseModel):
     commit_frequency: str = Field(default="unknown", description="high, medium, low, or unknown")
 
 
+class SecurityStatus(BaseModel):
+    """Component security indicators from vulnerability scanning (SEC-01)."""
+
+    risk_level: str = Field(default="unknown", description="safe, low, medium, high, or critical")
+    risk_score: float = Field(default=0.0, description="0-100 risk score")
+    findings_count: int = Field(default=0, description="Number of security findings")
+    has_scripts: bool = Field(default=False, description="Contains executable scripts")
+
+
 class ComponentRecommendation(BaseModel):
     """A recommended component with score and rationale."""
 
@@ -66,6 +75,7 @@ class ComponentRecommendation(BaseModel):
     rationale: str
     token_cost: int
     health: HealthStatus | None = Field(default=None, description="Component health status")
+    security: SecurityStatus | None = Field(default=None, description="Security scan results")
 
 
 class SearchResult(BaseModel):
@@ -310,3 +320,57 @@ class ReviewSuggestionInput(BaseModel):
     target_id: str = Field(description="Target component ID")
     suggestion_type: str = Field(description="bundles_with or conflicts_with")
     accept: bool = Field(description="Whether to accept the suggestion")
+
+
+# ---------------------------------------------------------------------------
+# Security scanning models (SEC-01)
+# ---------------------------------------------------------------------------
+
+
+class SecurityScanInput(BaseModel):
+    """Input for security_scan tool."""
+
+    component_id: str = Field(description="Component ID to scan")
+
+
+class SecurityFindingResult(BaseModel):
+    """A security finding from scanning."""
+
+    pattern_name: str = Field(description="Name of the vulnerability pattern")
+    category: str = Field(description="exfiltration, credential_access, privilege_escalation, obfuscation")
+    risk_level: str = Field(description="critical, high, medium, low")
+    description: str = Field(description="What this finding means")
+    matched_text: str = Field(default="", description="The matched code snippet (truncated)")
+    line_number: int | None = Field(default=None, description="Line number in content")
+    cwe_id: str | None = Field(default=None, description="Common Weakness Enumeration ID")
+
+
+class SecurityScanResult(BaseModel):
+    """Result of security scan."""
+
+    component_id: str
+    risk_level: str = Field(description="safe, low, medium, high, or critical")
+    risk_score: float = Field(description="0-100 risk score")
+    findings: list[SecurityFindingResult] = Field(default_factory=list)
+    has_scripts: bool = Field(default=False, description="Contains executable scripts")
+    is_safe: bool = Field(description="True if no significant vulnerabilities found")
+
+
+class SecurityAuditInput(BaseModel):
+    """Input for security_audit tool."""
+
+    risk_level: str = Field(default="medium", description="Minimum risk level to report: low, medium, high, critical")
+
+
+class SecurityAuditResult(BaseModel):
+    """Result of security audit across all components."""
+
+    total_components: int
+    scanned_count: int
+    safe_count: int
+    low_risk_count: int
+    medium_risk_count: int
+    high_risk_count: int
+    critical_risk_count: int
+    flagged_components: list[str] = Field(description="Component IDs at or above threshold")
+    top_findings: list[SecurityFindingResult] = Field(description="Most common finding patterns")

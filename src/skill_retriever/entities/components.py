@@ -54,6 +54,12 @@ class ComponentMetadata(BaseModel):
     category: str = ""
     install_url: str | None = None  # For curated list entries that link to external repos
 
+    # Security fields (SEC-01)
+    security_risk_level: str = "unknown"  # safe, low, medium, high, critical
+    security_risk_score: float = 0.0  # 0-100
+    security_findings_count: int = 0
+    has_scripts: bool = False
+
     @field_validator("id", mode="before")
     @classmethod
     def normalize_id(cls, v: str) -> str:

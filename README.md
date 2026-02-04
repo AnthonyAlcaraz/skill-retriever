@@ -379,6 +379,74 @@ Execution outcomes feed back into the graph to improve future recommendations:
 
 **Key insight**: The system learns from real-world usage. Components that work well together get boosted. Components that fail together get flagged as conflicts. This creates a self-improving recommendation engine.
 
+### 7. Security Scanning (SEC-01)
+
+Scans components for security vulnerabilities during ingestion and on-demand:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Security Scanner                              │
+│                                                                  │
+│  Based on Yi Liu et al. "Agent Skills in the Wild" research:    │
+│  - 26.1% of skills contain vulnerable patterns                  │
+│  - 5.2% show malicious intent indicators                        │
+│  - Skills with scripts are 2.12x more likely to be vulnerable   │
+│                                                                  │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Vulnerability Detection                      │   │
+│  │                                                          │   │
+│  │  Data Exfiltration (13.3%)                               │   │
+│  │    - HTTP POST with data payload                         │   │
+│  │    - File read + external request                        │   │
+│  │    - Webhook endpoints                                   │   │
+│  │                                                          │   │
+│  │  Credential Access                                       │   │
+│  │    - Environment variable harvesting                     │   │
+│  │    - SSH key / AWS credential access                     │   │
+│  │    - Sensitive env vars (API_KEY, SECRET, TOKEN)        │   │
+│  │                                                          │   │
+│  │  Privilege Escalation (11.8%)                            │   │
+│  │    - Shell injection via variable interpolation          │   │
+│  │    - Dynamic code execution (eval/exec)                  │   │
+│  │    - sudo execution, chmod 777                           │   │
+│  │    - Download and execute patterns                       │   │
+│  │                                                          │   │
+│  │  Obfuscation (malicious intent)                          │   │
+│  │    - Hex-encoded strings                                 │   │
+│  │    - Unicode escapes                                     │   │
+│  │    - String concatenation obfuscation                    │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Risk Assessment                              │   │
+│  │                                                          │   │
+│  │  Risk Levels: safe → low → medium → high → critical      │   │
+│  │                                                          │   │
+│  │  Risk Score (0-100):                                     │   │
+│  │    Base = sum of finding weights                         │   │
+│  │    Script multiplier = 1.5x if has_scripts               │   │
+│  │                                                          │   │
+│  │  Each component stores:                                  │   │
+│  │    - security_risk_level                                 │   │
+│  │    - security_risk_score                                 │   │
+│  │    - security_findings_count                             │   │
+│  │    - has_scripts                                         │   │
+│  └──────────────────────────────────────────────────────────┘   │
+│                          │                                       │
+│                          ▼                                       │
+│  ┌──────────────────────────────────────────────────────────┐   │
+│  │              Integration Points                           │   │
+│  │                                                          │   │
+│  │  Ingestion: scan during ingest_repo()                    │   │
+│  │  Retrieval: include SecurityStatus in search results     │   │
+│  │  On-demand: security_scan() and security_audit() tools   │   │
+│  └──────────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key insight**: Security scanning catches 26%+ of vulnerable patterns before they reach your codebase. The system flags data exfiltration, credential access, privilege escalation, and code obfuscation.
+
 ## Integration with Claude Code
 
 ### Setup
@@ -434,6 +502,9 @@ Once configured, Claude Code can use these tools:
 | `get_feedback_suggestions` | View pending edge suggestions |
 | `review_suggestion` | Accept or reject a suggested edge |
 | `apply_feedback_suggestions` | Apply accepted suggestions to the graph |
+| **Security Scanning** | |
+| `security_scan` | Scan a specific component for vulnerabilities |
+| `security_audit` | Audit all components, report by risk level |
 
 ### Example Conversation
 
@@ -503,6 +574,7 @@ You can now use `/commit` to create conventional commits!
 4. **Token budgeting** — Don't overwhelm Claude's context window
 5. **Health signals** — Surface stale/abandoned components
 6. **MCP protocol** — Native integration with Claude Code (no plugins needed)
+7. **Security-first scanning** — 26% of skills contain vulnerabilities; scan before installation
 
 ## Requirements Coverage
 
@@ -525,11 +597,13 @@ You can now use `/commit` to create conventional commits!
 - LRNG-05: Outcome tracking (install success/failure, usage, removal)
 - LRNG-06: Feedback engine for implicit edge discovery
 - HLTH-01: Component health status
+- SEC-01: Security vulnerability scanning (based on Yi Liu et al. research)
 
 ### Deferred
 - RETR-05: LLM-assisted query rewriting
 - LRNG-01/02: Collaborative filtering from usage patterns
 - HLTH-02: Deprecation warnings
+- SEC-02: Real-time re-scanning of installed components
 
 ## Development
 
