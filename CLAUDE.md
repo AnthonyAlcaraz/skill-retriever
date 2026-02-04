@@ -39,9 +39,16 @@ Example queries:
    - `score`: Relevance score (0-1)
    - `rationale`: Why this component was recommended
    - `health`: Active/stale/abandoned status
+   - `security`: Risk assessment (see Security section below)
    - `token_cost`: Context window impact
 
-2. **Check dependencies** before installing:
+2. **Check security before installing** — Surface warnings for HIGH/CRITICAL:
+   ```
+   Security: ⚠️ CRITICAL (shell_injection, env_harvest_all)
+   → "This component uses eval() with user input and accesses all env vars. Proceed?"
+   ```
+
+3. **Check dependencies** before installing:
    ```
    check_dependencies(component_ids=["id1", "id2"])
    ```
@@ -124,11 +131,111 @@ Override with explicit hints:
 - Include "command" or "quick" → prioritizes commands
 - Include "mcp" or "server" → prioritizes MCPs
 
+## Security Scanning (SEC-01)
+
+**Every search result includes security status.** The system scans for:
+
+| Category | Risk | Examples |
+|----------|------|----------|
+| Data Exfiltration | HIGH | HTTP POST with data, webhook endpoints |
+| Credential Access | CRITICAL | `process.env` harvesting, SSH key access |
+| Privilege Escalation | CRITICAL | Shell injection, `eval()`, `sudo`, `rm -rf` |
+| Obfuscation | HIGH | Hex encoding, unicode escapes |
+
+**How to handle security warnings:**
+
+```
+# Search returns:
+auth-jwt-skill
+  Score: 0.89
+  Security: ⚠️ MEDIUM (env_sensitive_keys)
+  Findings: 1 - accesses JWT_SECRET from env
+
+crypto-utils
+  Score: 0.72
+  Security: ✅ SAFE
+```
+
+**Actions based on risk level:**
+
+| Risk | Action |
+|------|--------|
+| SAFE | Install without warning |
+| LOW | Mention in passing |
+| MEDIUM | Surface to user: "accesses X, expected?" |
+| HIGH | Warn user, explain finding |
+| CRITICAL | **Strong warning**, require explicit approval |
+
+**Security tools:**
+
+```python
+# Scan specific component
+security_scan(component_id="owner/repo/skill/name")
+
+# Audit all indexed components
+security_audit(risk_level="medium")  # Reports MEDIUM and above
+
+# Backfill security scans (for components indexed before SEC-01)
+backfill_security_scans(force_rescan=False)
+```
+
+**Known false positives:**
+- `shell_injection` triggers on bash code blocks in markdown (e.g., `gh pr view $PR`)
+- `webhook_post` flags legitimate Discord/Slack integrations
+- Review CRITICAL findings manually before dismissing
+
+## Troubleshooting
+
+### Ingestion Failures
+
+```python
+# Check heal status
+get_heal_status()
+# Returns: failures with retry count, healable status
+
+# Clear stuck failures
+clear_heal_failures()
+
+# Re-ingest failed repo
+ingest_repo(repo_url="https://github.com/owner/repo")
+```
+
+**Common failure types:**
+| Type | Cause | Fix |
+|------|-------|-----|
+| `CLONE_FAILED` | Network/auth issue | Check URL, retry |
+| `NO_COMPONENTS` | Repo has no recognizable components | Expected, skip |
+| `RATE_LIMITED` | GitHub API limit | Wait, retry later |
+| `PARSE_ERROR` | Malformed component file | Report issue |
+
+### Search Returns Empty
+
+1. Check index is loaded: `sync_status()`
+2. Verify component exists: `get_component_detail(component_id="...")`
+3. Try broader query terms
+4. Check type filter isn't too restrictive
+
+### Installation Fails
+
+```python
+# Check dependencies first
+check_dependencies(component_ids=["id1"])
+# Returns: conflicts, missing deps
+
+# If component not found in metadata:
+ingest_repo(repo_url="<source repo>")
+```
+
 ## Data Paths
 
 | Data | Location |
 |------|----------|
-| Index | `~/.skill-retriever/` |
-| Outcome tracker | `~/.skill-retriever/outcome-tracker.json` |
-| Feedback engine | `~/.skill-retriever/feedback-engine.json` |
+| Index | `~/.skill-retriever/data/` |
+| Graph | `~/.skill-retriever/data/graph.json` |
+| Vectors | `~/.skill-retriever/data/vectors/` |
+| Metadata | `~/.skill-retriever/data/metadata.json` |
+| Outcome tracker | `~/.skill-retriever/data/outcome-tracker.json` |
+| Component memory | `~/.skill-retriever/data/component-memory.json` |
+| Ingestion cache | `~/.skill-retriever/data/ingestion-cache.json` |
+| Repo registry | `~/.skill-retriever/repo-registry.json` |
 | Installed components | `.claude/` in target project |

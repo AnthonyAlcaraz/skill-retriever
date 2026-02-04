@@ -739,6 +739,113 @@ Claude: [Calls backfill_security_scans(force_rescan=false)]
 - SEC-02: LLM-assisted false positive reduction for security scanning
 - SEC-03: Real-time re-scanning of installed components
 
+## Troubleshooting
+
+### Ingestion Failures
+
+```bash
+# Check auto-heal status
+get_heal_status()
+```
+
+| Failure Type | Cause | Solution |
+|-------------|-------|----------|
+| `CLONE_FAILED` | Network timeout, auth required | Check URL, verify public access |
+| `NO_COMPONENTS` | Repo has no Claude Code components | Expected for non-skill repos |
+| `RATE_LIMITED` | GitHub API limit exceeded | Wait 1 hour, retry |
+| `PARSE_ERROR` | Malformed markdown/YAML | Open issue on source repo |
+
+**To retry failed ingestion:**
+```bash
+clear_heal_failures()
+ingest_repo(repo_url="https://github.com/owner/repo", incremental=False)
+```
+
+### Search Returns Empty Results
+
+1. **Verify index is loaded:**
+   ```bash
+   sync_status()  # Check tracked_repos > 0
+   ```
+
+2. **Check if component exists:**
+   ```bash
+   get_component_detail(component_id="owner/repo/skill/name")
+   ```
+
+3. **Try broader search terms:**
+   - "auth" instead of "JWT RS256 authentication"
+   - Remove specific technology mentions
+
+4. **Check type filter isn't too restrictive:**
+   ```bash
+   search_components(query="auth", component_type=None)  # Remove filter
+   ```
+
+### Installation Failures
+
+```bash
+# Always check dependencies first
+check_dependencies(component_ids=["id1", "id2"])
+```
+
+| Error | Cause | Solution |
+|-------|-------|----------|
+| Component not found | Not in metadata store | `ingest_repo()` the source repo |
+| Conflict detected | Incompatible components | Choose one, or use `conflicts` field to understand |
+| Write permission denied | Target dir not writable | Check `.claude/` exists and is writable |
+
+### Security Scan False Positives
+
+The `shell_injection` pattern flags many legitimate bash examples:
+
+```bash
+# This is flagged but safe (bash in markdown):
+gh pr view $PR_NUMBER
+
+# This would be actually dangerous:
+eval "$USER_INPUT"
+```
+
+**To review false positives:**
+```bash
+security_scan(component_id="owner/repo/skill/name")
+# Review each finding's matched_text
+```
+
+### MCP Server Won't Start
+
+1. **Check Python version:** Requires 3.11+
+2. **Check dependencies:** `uv sync`
+3. **Check port conflicts:** Webhook server uses 9847
+4. **Check Claude Code config:**
+   ```json
+   {
+     "mcpServers": {
+       "skill-retriever": {
+         "command": "uv",
+         "args": ["run", "--directory", "/path/to/skill-retriever", "skill-retriever"]
+       }
+     }
+   }
+   ```
+
+### Data Corruption
+
+If the index seems corrupted:
+
+```bash
+# Backup existing data
+cp -r ~/.skill-retriever/data ~/.skill-retriever/data.bak
+
+# Clear and re-ingest
+rm ~/.skill-retriever/data/*.json
+rm -rf ~/.skill-retriever/data/vectors/
+
+# Re-run discovery pipeline
+run_discovery_pipeline(dry_run=False, max_new_repos=50)
+```
+
 ## Development
 
 ```bash
