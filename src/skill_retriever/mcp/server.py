@@ -63,15 +63,23 @@ _component_memory: ComponentMemory | None = None
 _sync_manager: "SyncManager | None" = None
 _init_lock = asyncio.Lock()
 
-# Path for component memory persistence
-_COMPONENT_MEMORY_PATH = Path(tempfile.gettempdir()) / "skill-retriever-memory.json"
+# Persistent storage directory (survives restarts)
+_STORAGE_DIR = Path.home() / ".skill-retriever" / "data"
+_STORAGE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Paths for persistence
+_GRAPH_PATH = _STORAGE_DIR / "graph.json"
+_VECTOR_DIR = _STORAGE_DIR / "vectors"
+_METADATA_PATH = _STORAGE_DIR / "metadata.json"
+_COMPONENT_MEMORY_PATH = _STORAGE_DIR / "component-memory.json"
+_INGESTION_CACHE_PATH = _STORAGE_DIR / "ingestion-cache.json"
 
 if TYPE_CHECKING:
     from skill_retriever.sync.manager import SyncManager
 
 
 async def get_pipeline() -> RetrievalPipeline:
-    """Get or initialize the retrieval pipeline."""
+    """Get or initialize the retrieval pipeline, loading from persistent storage."""
     global _pipeline, _graph_store, _vector_store, _metadata_store, _component_memory
 
     async with _init_lock:
@@ -84,17 +92,34 @@ async def get_pipeline() -> RetrievalPipeline:
             from skill_retriever.workflows.pipeline import RetrievalPipeline
 
             logger.info("Initializing retrieval pipeline...")
+
+            # Initialize graph store and load from disk if exists
             _graph_store = NetworkXGraphStore()
+            if _GRAPH_PATH.exists():
+                try:
+                    _graph_store.load(str(_GRAPH_PATH))
+                    logger.info("Loaded graph store: %d nodes", _graph_store.node_count())
+                except Exception:
+                    logger.exception("Failed to load graph store, starting fresh")
+
+            # Initialize vector store and load from disk if exists
             _vector_store = VectorStore()
+            if _VECTOR_DIR.exists():
+                try:
+                    _vector_store.load(str(_VECTOR_DIR))
+                    logger.info("Loaded vector store: %d vectors", _vector_store.count)
+                except Exception:
+                    logger.exception("Failed to load vector store, starting fresh")
+
             _pipeline = RetrievalPipeline(_graph_store, _vector_store)
 
-            # Initialize metadata store in temp location (future: configurable)
-            metadata_path = Path(tempfile.gettempdir()) / "skill-retriever-metadata.json"
-            _metadata_store = MetaStore(metadata_path)
+            # Initialize metadata store with persistent path
+            _metadata_store = MetaStore(_METADATA_PATH)
+            logger.info("Loaded metadata store: %d components", len(_metadata_store))
 
             # Initialize component memory for usage tracking (LRNG-03)
             _component_memory = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
-            logger.info("Pipeline initialized")
+            logger.info("Pipeline initialized with persistent storage at %s", _STORAGE_DIR)
 
         return _pipeline
 
@@ -404,8 +429,7 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         )
 
     # Initialize ingestion cache for incremental updates (SYNC-03)
-    cache_path = Path(tempfile.gettempdir()) / "skill-retriever-ingestion-cache.json"
-    ingestion_cache = IngestionCache(cache_path)
+    ingestion_cache = IngestionCache(_INGESTION_CACHE_PATH)
     repo_key = f"{owner}/{name}"
 
     # Track counts for return value
@@ -415,11 +439,12 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
     skipped_count = 0
 
     # Clone to temp directory
-    with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
         repo_path = Path(tmpdir) / name
+        git_repo: Repo | None = None
         try:
             logger.info("Cloning %s/%s to %s", owner, name, repo_path)
-            Repo.clone_from(input.repo_url, repo_path)
+            git_repo = Repo.clone_from(input.repo_url, repo_path)
         except Exception as e:
             return IngestResult(
                 components_found=0,
@@ -507,9 +532,17 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 errors.append(f"Failed to index {comp.id}: {e}")
                 logger.exception("Failed to index component %s", comp.id)
 
-        # Persist stores after all components indexed
+        # Persist all stores after indexing
         metadata_store.save()
         ingestion_cache.save()
+        graph_store.save(str(_GRAPH_PATH))
+        vector_store.save(str(_VECTOR_DIR))
+        logger.info("Persisted stores: graph=%d nodes, vectors=%d",
+                    graph_store.node_count(), vector_store.count)
+
+        # Close git repo to release file handles (Windows compatibility)
+        if git_repo is not None:
+            git_repo.close()
 
     return IngestResult(
         components_found=raw_count,
