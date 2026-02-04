@@ -4,17 +4,66 @@
 
 Given a task description, returns the minimal correct set of components (agents, skills, commands, hooks, MCPs) with all dependencies resolved.
 
+## Current Index
+
+**836 components** from 18 repositories, auto-synced hourly.
+
+| Type | Count | Description |
+|------|-------|-------------|
+| **Agents** | 405 | Specialized AI personas with isolated context and fine-grained permissions |
+| **Skills** | 363 | Portable instruction sets that package domain expertise and procedural knowledge |
+| **Commands** | 33 | Slash commands (`/commit`, `/review`, etc.) |
+| **Hooks** | 20 | Event handlers (SessionStart, PreCompact, etc.) |
+| **MCPs** | 15 | Model Context Protocol servers for external integrations |
+
+### Top Repositories
+
+| Repository | Components | Description |
+|------------|------------|-------------|
+| [wshobson/agents](https://github.com/wshobson/agents) | 221 | Multi-agent orchestration with 129 skills |
+| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | 172 | 200+ curated skills compatible with Codex, Gemini CLI |
+| [davepoon/buildwithclaude](https://github.com/davepoon/buildwithclaude) | 152 | Full-stack development skills |
+| [BehiSecc/awesome-claude-skills](https://github.com/BehiSecc/awesome-claude-skills) | 61 | Document processing, security, scientific skills |
+| [anthropics/skills](https://github.com/anthropics/skills) | 17 | Official Anthropic skills (Excel, PowerPoint, PDF, skill-creator) |
+| [obra/superpowers](https://github.com/obra/superpowers) | 13 | TDD, debugging, and software development methodology |
+
 ## What Problem Does This Solve?
 
-Claude Code supports custom components stored in `.claude/` directories:
-- **Agents** — Specialized AI personas (code reviewer, architect, etc.)
-- **Skills** — Reusable prompts and workflows
-- **Commands** — Slash commands (`/commit`, `/review`, etc.)
-- **Hooks** — Event handlers (pre-commit, post-task, etc.)
-- **MCPs** — Model Context Protocol servers
-- **Settings** — Configuration files
+Claude Code supports custom components stored in `.claude/` directories.
 
-The problem: **There are thousands of community components scattered across GitHub repos.** Finding the right ones for your task, understanding their dependencies, and ensuring compatibility is painful.
+### The Agent Skills Standard
+
+Skills are **folders of instructions** that extend Claude's capabilities. Every skill includes a `SKILL.md` markdown file containing name, description, and instructions. Skills are **progressively disclosed**—only name and description load initially; full instructions load only when triggered.
+
+The open standard means skills work across:
+- Claude AI and Claude Desktop
+- Claude Code
+- Claude Agent SDK
+- Codex, Gemini CLI, OpenCode, and other compatible platforms
+
+### Component Types Explained
+
+| Type | What It Does | When to Use |
+|------|-------------|-------------|
+| **Skill** | Packages domain expertise + procedural knowledge into portable instructions | Repeatable workflows, company-specific analysis, new capabilities |
+| **Agent** | Spawned subprocess with isolated context and tool access | Parallel execution, specialized tasks, permission isolation |
+| **Command** | Slash command (`/name`) that triggers specific behavior | Quick actions, shortcuts, task invocation |
+| **Hook** | Runs automatically on events (SessionStart, PreCompact) | Context setup, auto-save, cleanup |
+| **MCP** | Model Context Protocol server connecting to external systems | Database access, APIs, file systems |
+
+### Skills vs Tools vs Subagents
+
+| Concept | Analogy | Persistence | Context |
+|---------|---------|-------------|---------|
+| **Tools** | Hammer, saw, nails | Always in context | Adds to main window |
+| **Skills** | How to build a bookshelf | Progressively loaded | Name/desc → SKILL.md → refs |
+| **Subagents** | Hire a specialist | Session-scoped | Isolated from parent |
+
+**Key insight**: Skills solve the context window problem. By progressively disclosing instructions, they avoid polluting context with data that may never be needed.
+
+### The Problem This Solves
+
+**There are now 800+ community components scattered across GitHub repos.** Finding the right ones for your task, understanding their dependencies, and ensuring compatibility is painful.
 
 **Skill Retriever solves this by:**
 1. Indexing component repositories into a searchable knowledge graph
@@ -81,11 +130,13 @@ Repository (GitHub)
 └──────────────────┘
        │
        ▼
-┌──────────────────┐    Supports:
-│  Crawler         │    - davila7/claude-code-cli style (cli-tool/components/)
-│  (Strategy-based)│    - .claude/{agents,skills,commands}/ style
-└──────────────────┘    - Generic markdown with frontmatter
-       │                - Python source files with docstrings
+┌──────────────────┐    Strategies (first match wins):
+│  Crawler         │    1. Davila7Strategy: cli-tool/components/{type}/
+│  (Strategy-based)│    2. PluginMarketplaceStrategy: plugins/{name}/skills/
+└──────────────────┘    3. FlatDirectoryStrategy: .claude/{type}/
+       │                4. GenericMarkdownStrategy: Any *.md with name frontmatter
+       │                5. AwesomeListStrategy: README.md curated lists
+       │                6. PythonModuleStrategy: *.py with docstrings
        ▼
 ┌──────────────────┐
 │  Entity Resolver │    Deduplicates similar components using:
@@ -382,6 +433,12 @@ uv run pyright
 # Lint
 uv run ruff check
 ```
+
+## Related Resources
+
+- **[DeepLearning.AI Agent Skills Course](https://learn.deeplearning.ai/courses/agent-skills-with-anthropic)** — Official course covering skill creation, Claude API, Claude Code, and Agent SDK
+- **[anthropics/skills](https://github.com/anthropics/skills)** — Official Anthropic skills repository
+- **[Agent Skills Specification](https://agentskills.io)** — Open standard documentation
 
 ## License
 

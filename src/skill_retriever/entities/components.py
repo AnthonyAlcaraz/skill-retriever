@@ -52,6 +52,7 @@ class ComponentMetadata(BaseModel):
     source_repo: str = ""
     source_path: str = ""
     category: str = ""
+    install_url: str | None = None  # For curated list entries that link to external repos
 
     @field_validator("id", mode="before")
     @classmethod

@@ -434,3 +434,220 @@ class PythonModuleStrategy:
             return "/".join(parts) if parts else ""
         except ValueError:
             return ""
+
+
+class PluginMarketplaceStrategy:
+    """Strategy for plugin marketplace repos (e.g., zxkane/aws-skills, obra/superpowers-marketplace).
+
+    Expects: ``plugins/{plugin-name}/skills/{skill-name}/SKILL.md``
+    or: ``plugins/{plugin-name}/agents/{agent-name}/AGENT.md``
+    """
+
+    def __init__(self, repo_owner: str, repo_name: str) -> None:
+        self.repo_owner = repo_owner
+        self.repo_name = repo_name
+
+    def can_handle(self, repo_root: Path) -> bool:
+        plugins_dir = repo_root / "plugins"
+        if not plugins_dir.is_dir():
+            return False
+        # Check if any plugin has skills/ or agents/ subdirectory
+        for plugin_dir in plugins_dir.iterdir():
+            if plugin_dir.is_dir():
+                if (plugin_dir / "skills").is_dir() or (plugin_dir / "agents").is_dir():
+                    return True
+        return False
+
+    def discover(self, repo_root: Path) -> list[Path]:
+        plugins_dir = repo_root / "plugins"
+        files: list[Path] = []
+        for plugin_dir in plugins_dir.iterdir():
+            if not plugin_dir.is_dir():
+                continue
+            # Look for skills
+            skills_dir = plugin_dir / "skills"
+            if skills_dir.is_dir():
+                for skill_dir in skills_dir.iterdir():
+                    if skill_dir.is_dir():
+                        skill_md = skill_dir / "SKILL.md"
+                        if skill_md.exists():
+                            files.append(skill_md)
+            # Look for agents
+            agents_dir = plugin_dir / "agents"
+            if agents_dir.is_dir():
+                for agent_dir in agents_dir.iterdir():
+                    if agent_dir.is_dir():
+                        # Try AGENT.md first, then fallback to any .md
+                        agent_md = agent_dir / "AGENT.md"
+                        if agent_md.exists():
+                            files.append(agent_md)
+                        else:
+                            # Look for any markdown file with name frontmatter
+                            for md_file in agent_dir.glob("*.md"):
+                                raw_meta, _ = parse_component_file(md_file)
+                                if raw_meta.get("name"):
+                                    files.append(md_file)
+                                    break
+        return sorted(files)
+
+    def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
+        raw_meta, content = parse_component_file(file_path)
+        meta = normalize_frontmatter(raw_meta)
+
+        # Get name from frontmatter or directory name
+        name = meta.get("name")
+        if not name:
+            name = file_path.parent.name  # Use directory name as fallback
+
+        if not name:
+            return None
+
+        # Infer type from path structure
+        parts_lower = [p.lower() for p in file_path.parts]
+        if "agents" in parts_lower or file_path.name.upper() == "AGENT.MD":
+            component_type = ComponentType.AGENT
+        elif "skills" in parts_lower or file_path.name.upper() == "SKILL.MD":
+            component_type = ComponentType.SKILL
+        else:
+            component_type = _infer_type_from_path(file_path)
+
+        # Extract plugin name for category
+        try:
+            rel = file_path.relative_to(repo_root / "plugins")
+            plugin_name = rel.parts[0] if rel.parts else ""
+        except ValueError:
+            plugin_name = ""
+
+        component_id = ComponentMetadata.generate_id(
+            self.repo_owner, self.repo_name, component_type, name
+        )
+
+        return ComponentMetadata(
+            id=component_id,
+            name=name,
+            component_type=component_type,
+            description=meta.get("description", ""),
+            tags=meta.get("tags", []),
+            tools=meta.get("tools", []),
+            dependencies=meta.get("dependencies", []),
+            version=meta.get("version", ""),
+            raw_content=content,
+            source_repo=f"{self.repo_owner}/{self.repo_name}",
+            source_path=str(file_path.relative_to(repo_root)),
+            category=plugin_name,
+        )
+
+
+class AwesomeListStrategy:
+    """Strategy for curated awesome-list repos that link to external skills.
+
+    Parses README.md to extract skill references and metadata.
+    Extracts: name, description, URL, tags from markdown lists/tables.
+    """
+
+    def __init__(self, repo_owner: str, repo_name: str) -> None:
+        self.repo_owner = repo_owner
+        self.repo_name = repo_name
+
+    def can_handle(self, repo_root: Path) -> bool:
+        # Check if repo name suggests awesome list
+        if "awesome" not in self.repo_name.lower():
+            return False
+        readme = repo_root / "README.md"
+        if not readme.exists():
+            return False
+        # Check if README contains skill/component links
+        try:
+            content = readme.read_text(encoding="utf-8")
+            # Look for patterns indicating a curated list
+            return (
+                "github.com" in content.lower()
+                and ("skill" in content.lower() or "agent" in content.lower())
+                and ("-" in content or "*" in content)  # List markers
+            )
+        except Exception:
+            return False
+
+    def discover(self, repo_root: Path) -> list[Path]:
+        # For awesome lists, we return the README as the source file
+        readme = repo_root / "README.md"
+        return [readme] if readme.exists() else []
+
+    def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
+        # This strategy returns multiple components from a single file
+        # For now, just mark the README as processed and return None
+        # The actual extraction happens in extract_all()
+        return None
+
+    def extract_all(self, repo_root: Path) -> list[ComponentMetadata]:
+        """Extract all components from the awesome list README."""
+        import re
+
+        readme = repo_root / "README.md"
+        if not readme.exists():
+            return []
+
+        try:
+            content = readme.read_text(encoding="utf-8")
+        except Exception:
+            return []
+
+        components: list[ComponentMetadata] = []
+
+        # Pattern 1: Markdown links with descriptions
+        # [name](url) - description
+        # **[name](url)** - description
+        link_pattern = re.compile(
+            r'\*?\*?\[([^\]]+)\]\((https?://[^\)]+)\)\*?\*?\s*[-–—:]\s*(.+?)(?:\n|$)',
+            re.IGNORECASE
+        )
+
+        for match in link_pattern.finditer(content):
+            name = match.group(1).strip()
+            url = match.group(2).strip()
+            description = match.group(3).strip()
+
+            # Skip non-skill links
+            if not any(kw in url.lower() for kw in ["github.com", "skill", "agent", "claude"]):
+                continue
+
+            # Infer type from context
+            context_start = max(0, match.start() - 200)
+            context = content[context_start:match.start()].lower()
+            if "agent" in context:
+                component_type = ComponentType.AGENT
+            elif "hook" in context:
+                component_type = ComponentType.HOOK
+            elif "mcp" in context:
+                component_type = ComponentType.MCP
+            else:
+                component_type = ComponentType.SKILL
+
+            # Extract tags from description
+            tags = []
+            tag_matches = re.findall(r'`([^`]+)`', description)
+            tags.extend(tag_matches[:5])
+
+            # Generate unique ID
+            safe_name = re.sub(r'[^a-z0-9-]', '-', name.lower())[:50]
+            component_id = ComponentMetadata.generate_id(
+                self.repo_owner, self.repo_name, component_type, safe_name
+            )
+
+            components.append(ComponentMetadata(
+                id=component_id,
+                name=name,
+                component_type=component_type,
+                description=description[:500],
+                tags=tags,
+                tools=[],
+                dependencies=[],
+                version="",
+                raw_content=f"[{name}]({url})\n{description}",
+                source_repo=f"{self.repo_owner}/{self.repo_name}",
+                source_path="README.md",
+                category="curated",
+                install_url=url if "github.com" in url else None,
+            ))
+
+        return components

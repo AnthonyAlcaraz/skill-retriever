@@ -7,9 +7,11 @@ from pathlib import Path  # noqa: TC003
 
 from skill_retriever.entities import ComponentMetadata  # noqa: TC001
 from skill_retriever.nodes.ingestion.extractors import (
+    AwesomeListStrategy,
     Davila7Strategy,
     FlatDirectoryStrategy,
     GenericMarkdownStrategy,
+    PluginMarketplaceStrategy,
     PythonModuleStrategy,
 )
 from skill_retriever.nodes.ingestion.git_signals import extract_git_signals
@@ -29,14 +31,16 @@ class RepositoryCrawler:
         self.repo_owner = repo_owner
         self.repo_name = repo_name
         self.repo_path = repo_path
-        # Markdown strategies (first match wins)
+        # Markdown strategies (first match wins - more specific first)
         self.markdown_strategies = [
             Davila7Strategy(repo_owner, repo_name),
-            FlatDirectoryStrategy(repo_owner, repo_name),
-            GenericMarkdownStrategy(repo_owner, repo_name),
+            PluginMarketplaceStrategy(repo_owner, repo_name),  # plugins/{name}/skills/
+            FlatDirectoryStrategy(repo_owner, repo_name),       # .claude/{type}/
+            GenericMarkdownStrategy(repo_owner, repo_name),     # Any markdown with name frontmatter
         ]
-        # Python strategy runs independently
+        # Special strategies that run independently
         self.python_strategy = PythonModuleStrategy(repo_owner, repo_name)
+        self.awesome_list_strategy = AwesomeListStrategy(repo_owner, repo_name)
 
     def crawl(self) -> list[ComponentMetadata]:
         """Discover and extract all components from the repository."""
@@ -77,6 +81,17 @@ class RepositoryCrawler:
                 comp = self._extract_with_signals(self.python_strategy, file_path)
                 if comp:
                     components.append(comp)
+
+        # Try awesome list strategy for curated repos (extracts from README)
+        if self.awesome_list_strategy.can_handle(self.repo_path):
+            logger.info(
+                "Using AwesomeListStrategy for %s/%s",
+                self.repo_owner,
+                self.repo_name,
+            )
+            awesome_components = self.awesome_list_strategy.extract_all(self.repo_path)
+            logger.info("Extracted %d components from awesome list", len(awesome_components))
+            components.extend(awesome_components)
 
         if not components:
             logger.warning("No components found for %s", self.repo_path)
