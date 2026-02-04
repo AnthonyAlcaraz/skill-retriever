@@ -6,15 +6,16 @@ Given a task description, returns the minimal correct set of components (agents,
 
 ## Current Index
 
-**836 components** from 18 repositories, auto-synced hourly.
+**1,027 components** from 23 repositories, auto-discovered and synced.
 
 | Type | Count | Description |
 |------|-------|-------------|
-| **Agents** | 405 | Specialized AI personas with isolated context and fine-grained permissions |
-| **Skills** | 363 | Portable instruction sets that package domain expertise and procedural knowledge |
-| **Commands** | 33 | Slash commands (`/commit`, `/review`, etc.) |
+| **Skills** | 529 | Portable instruction sets that package domain expertise and procedural knowledge |
+| **Agents** | 419 | Specialized AI personas with isolated context and fine-grained permissions |
+| **Commands** | 36 | Slash commands (`/commit`, `/review`, etc.) |
 | **Hooks** | 20 | Event handlers (SessionStart, PreCompact, etc.) |
-| **MCPs** | 15 | Model Context Protocol servers for external integrations |
+| **MCPs** | 20 | Model Context Protocol servers for external integrations |
+| **Settings** | 3 | Configuration presets |
 
 ### Top Repositories
 
@@ -256,7 +257,44 @@ install_components(["davila7/commit-command"])
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### 4. Auto-Sync (SYNC-01, SYNC-02)
+### 4. Discovery Pipeline (OSS-01, HEAL-01)
+
+Automatically discovers and ingests high-quality skill repositories from GitHub:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Discovery Pipeline                            │
+│                                                                  │
+│  ┌──────────────────┐                                           │
+│  │   OSS Scout      │  Searches GitHub for skill repos:         │
+│  │                  │  - 8 search queries (claude, skills, etc) │
+│  │  discover()      │  - MIN_STARS: 5                           │
+│  │  ─────────────▶  │  - Recent activity: 180 days              │
+│  └────────┬─────────┘  - Quality scoring (stars, topics, etc)   │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌──────────────────┐                                           │
+│  │  Filter & Score  │  Score = stars (40) + recency (20)        │
+│  │                  │        + topics (20) + description (10)   │
+│  │  min_score: 30   │        + forks (10)                       │
+│  └────────┬─────────┘                                           │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌──────────────────┐                                           │
+│  │    Ingest New    │  Clone → Crawl → Dedupe → Index           │
+│  │  (max 10/run)    │  Uses same pipeline as ingest_repo        │
+│  └────────┬─────────┘                                           │
+│           │                                                      │
+│           ▼                                                      │
+│  ┌──────────────────┐                                           │
+│  │   Auto-Healer    │  Tracks failures:                         │
+│  │                  │  - CLONE_FAILED, NO_COMPONENTS            │
+│  │  MAX_RETRIES: 3  │  - NETWORK_ERROR, RATE_LIMITED            │
+│  └──────────────────┘  Automatically retries healable failures   │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 5. Auto-Sync (SYNC-01, SYNC-02)
 
 Repositories can be tracked for automatic updates:
 
@@ -312,11 +350,14 @@ Once configured, Claude Code can use these tools:
 
 | Tool | Purpose |
 |------|---------|
+| **Search & Install** | |
 | `search_components` | Find components for a task description |
 | `get_component_detail` | Get full info about a specific component |
 | `install_components` | Install components to `.claude/` |
 | `check_dependencies` | Check deps and conflicts before install |
+| **Ingestion** | |
 | `ingest_repo` | Index a new component repository |
+| **Sync Management** | |
 | `register_repo` | Track a repo for auto-sync |
 | `unregister_repo` | Stop tracking a repo |
 | `list_tracked_repos` | List all tracked repos |
@@ -324,6 +365,12 @@ Once configured, Claude Code can use these tools:
 | `start_sync_server` | Start webhook + poller |
 | `stop_sync_server` | Stop sync services |
 | `poll_repos_now` | Trigger immediate poll |
+| **Discovery Pipeline** | |
+| `run_discovery_pipeline` | Discover + ingest new skill repos from GitHub |
+| `discover_repos` | Search GitHub for skill repositories |
+| `get_pipeline_status` | Get discovery pipeline configuration |
+| `get_heal_status` | View auto-heal failures and status |
+| `clear_heal_failures` | Clear tracked failures |
 
 ### Example Conversation
 
@@ -406,6 +453,8 @@ You can now use `/commit` to create conventional commits!
 - SYNC-01: Webhook server for GitHub push events
 - SYNC-02: Auto-reingest on detected changes
 - SYNC-03: Incremental ingestion
+- OSS-01: GitHub-based repository discovery (OSS Scout)
+- HEAL-01: Auto-heal for failed ingestions with retry logic
 - RETR-06: Abstraction level awareness
 - LRNG-03: Co-occurrence tracking
 - HLTH-01: Component health status

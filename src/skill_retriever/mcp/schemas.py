@@ -165,3 +165,79 @@ class SyncStatusResult(BaseModel):
     polling_enabled: bool
     poll_interval_seconds: int
     tracked_repos: int
+
+
+# ---------------------------------------------------------------------------
+# Discovery pipeline models (OSS-01, HEAL-01)
+# ---------------------------------------------------------------------------
+
+
+class RunPipelineInput(BaseModel):
+    """Input for run_discovery_pipeline tool."""
+
+    dry_run: bool = Field(default=False, description="Discover but don't ingest")
+    min_score: float = Field(default=30.0, description="Minimum quality score")
+    max_new_repos: int = Field(default=10, description="Max repos to ingest")
+
+
+class PipelineRunResult(BaseModel):
+    """Result of discovery pipeline run."""
+
+    discovered_count: int = Field(description="Total repos discovered")
+    new_repos_count: int = Field(description="Repos not yet tracked")
+    ingested_count: int = Field(description="Successfully ingested")
+    failed_count: int = Field(description="Failed to ingest")
+    healed_count: int = Field(description="Previous failures healed")
+    skipped_count: int = Field(description="Skipped (dry-run or meta-list)")
+    errors: list[str] = Field(default_factory=list, description="Error messages")
+    duration_seconds: float = Field(description="Pipeline run duration")
+
+
+class DiscoveredRepo(BaseModel):
+    """A discovered repository from OSS Scout."""
+
+    owner: str
+    name: str
+    url: str
+    stars: int
+    description: str
+    updated_at: str = Field(description="ISO timestamp of last update")
+    topics: list[str]
+    score: float = Field(description="Quality score (0-100)")
+
+
+class DiscoverReposResult(BaseModel):
+    """Result of discover_repos tool."""
+
+    repos: list[DiscoveredRepo]
+    total: int
+    new_count: int = Field(description="Repos not yet tracked")
+
+
+class FailedRepo(BaseModel):
+    """A failed repository from auto-heal tracking."""
+
+    repo_key: str = Field(description="owner/name format")
+    failure_type: str = Field(description="Type of failure")
+    error_message: str
+    first_failure: str = Field(description="ISO timestamp")
+    retry_count: int
+    healable: bool = Field(description="Can be auto-healed")
+
+
+class HealStatusResult(BaseModel):
+    """Result of get_heal_status tool."""
+
+    total_failures: int
+    healable_count: int
+    healed_count: int
+    failures: list[FailedRepo]
+
+
+class PipelineStatusResult(BaseModel):
+    """Result of get_pipeline_status tool."""
+
+    scout_cache_path: str
+    min_score: float
+    max_new_repos: int
+    heal_status: HealStatusResult

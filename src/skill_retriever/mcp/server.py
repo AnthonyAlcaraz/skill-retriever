@@ -20,13 +20,20 @@ from skill_retriever.mcp.schemas import (
     ComponentRecommendation,
     DependencyCheckInput,
     DependencyCheckResult,
+    DiscoveredRepo,
+    DiscoverReposResult,
+    FailedRepo,
+    HealStatusResult,
     HealthStatus,
     IngestInput,
     IngestResult,
     InstallInput,
     InstallResult,
     ListTrackedReposResult,
+    PipelineRunResult,
+    PipelineStatusResult,
     RegisterRepoInput,
+    RunPipelineInput,
     SearchInput,
     SearchResult,
     SyncStatusResult,
@@ -683,6 +690,153 @@ async def poll_repos_now() -> str:
     sync_manager = await get_sync_manager()
     await sync_manager.poll_now()
     return "Poll completed"
+
+
+# ---------------------------------------------------------------------------
+# Discovery pipeline tools (OSS-01, HEAL-01)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def run_discovery_pipeline(input: RunPipelineInput) -> PipelineRunResult:
+    """Run the discovery and ingestion pipeline."""
+    from skill_retriever.sync.pipeline import DiscoveryPipeline
+
+    pipeline = DiscoveryPipeline(
+        min_score=input.min_score,
+        max_new_repos=input.max_new_repos,
+    )
+
+    result = await pipeline.run(dry_run=input.dry_run)
+
+    return PipelineRunResult(
+        discovered_count=result.discovered_count,
+        new_repos_count=result.new_repos_count,
+        ingested_count=result.ingested_count,
+        failed_count=result.failed_count,
+        healed_count=result.healed_count,
+        skipped_count=result.skipped_count,
+        errors=result.errors,
+        duration_seconds=result.duration_seconds,
+    )
+
+
+@mcp.tool
+async def discover_repos() -> DiscoverReposResult:
+    """Discover skill repositories from GitHub."""
+    from skill_retriever.sync.oss_scout import OSSScout
+    from skill_retriever.sync.registry import RepoRegistry
+
+    scout = OSSScout()
+    discovered = scout.discover(force_refresh=True)
+
+    # Get new repos count
+    registry = RepoRegistry()
+    new_repos = scout.get_new_repos(registry)
+
+    repos = [
+        DiscoveredRepo(
+            owner=r.owner,
+            name=r.name,
+            url=r.url,
+            stars=r.stars,
+            description=r.description,
+            updated_at=r.updated_at.isoformat(),
+            topics=r.topics,
+            score=r.score,
+        )
+        for r in discovered
+    ]
+
+    return DiscoverReposResult(
+        repos=repos,
+        total=len(repos),
+        new_count=len(new_repos),
+    )
+
+
+@mcp.tool
+async def get_heal_status() -> HealStatusResult:
+    """Get auto-heal status and failures."""
+    from skill_retriever.sync.auto_heal import AutoHealer
+
+    healer = AutoHealer()
+    status = healer.get_status()
+    healable = healer.get_healable_failures()
+    healable_keys = {h.repo_key for h in healable}
+
+    failures = [
+        FailedRepo(
+            repo_key=f.repo_key,
+            failure_type=f.failure_type.value,
+            error_message=f.error_message,
+            first_failure=f.timestamp.isoformat(),
+            retry_count=f.retry_count,
+            healable=f.repo_key in healable_keys,
+        )
+        for f in healer.state.failures.values()
+    ]
+
+    return HealStatusResult(
+        total_failures=status["total_failures"],
+        healable_count=status["healable"],
+        healed_count=status["total_healed"],
+        failures=failures,
+    )
+
+
+@mcp.tool
+async def get_pipeline_status() -> PipelineStatusResult:
+    """Get discovery pipeline status."""
+    from skill_retriever.sync.auto_heal import AutoHealer
+    from skill_retriever.sync.pipeline import DiscoveryPipeline
+
+    pipeline = DiscoveryPipeline()
+    status = pipeline.get_status()
+
+    healer = AutoHealer()
+    heal_status = healer.get_status()
+    healable = healer.get_healable_failures()
+    healable_keys = {h.repo_key for h in healable}
+
+    failures = [
+        FailedRepo(
+            repo_key=f.repo_key,
+            failure_type=f.failure_type.value,
+            error_message=f.error_message,
+            first_failure=f.timestamp.isoformat(),
+            retry_count=f.retry_count,
+            healable=f.repo_key in healable_keys,
+        )
+        for f in healer.state.failures.values()
+    ]
+
+    return PipelineStatusResult(
+        scout_cache_path=status["scout_cache"],
+        min_score=status["min_score"],
+        max_new_repos=status["max_new_repos"],
+        heal_status=HealStatusResult(
+            total_failures=heal_status["total_failures"],
+            healable_count=heal_status["healable"],
+            healed_count=heal_status["total_healed"],
+            failures=failures,
+        ),
+    )
+
+
+@mcp.tool
+async def clear_heal_failures() -> str:
+    """Clear all tracked failures from auto-heal."""
+    from skill_retriever.sync.auto_heal import AutoHealer
+
+    healer = AutoHealer()
+    count = len(healer.state.failures)
+    healer.state.failures.clear()
+    healer.state.total_healed = 0
+    healer.state.total_failed = 0
+    healer._save_state()
+
+    return f"Cleared {count} failure records"
 
 
 def main() -> None:
