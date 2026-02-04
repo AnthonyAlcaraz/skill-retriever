@@ -14,24 +14,26 @@ from skill_retriever.nodes.retrieval.models import RankedComponent
 
 
 class TestToolRegistration:
-    """Test that all 5 tools are registered."""
+    """Test that core tools are registered."""
 
-    def test_five_tools_registered(self) -> None:
-        """MCP server should have exactly 5 tools registered."""
+    def test_core_tools_registered(self) -> None:
+        """MCP server should have at least the 5 core tools registered."""
         from skill_retriever.mcp.server import mcp
 
         # Access internal tool manager to get tool count
         # pyright: ignore[reportPrivateUsage]
         tools = mcp._tool_manager._tools  # pyright: ignore[reportPrivateUsage]
-        assert len(tools) == 5, f"Expected 5 tools, got {len(tools)}"
+        # We have 27 tools now (5 core + sync + discovery + outcome + feedback + security)
+        assert len(tools) >= 5, f"Expected at least 5 tools, got {len(tools)}"
 
     def test_tool_names(self) -> None:
-        """Verify expected tool names are registered."""
+        """Verify core tool names are registered."""
         from skill_retriever.mcp.server import mcp
 
         # pyright: ignore[reportPrivateUsage]
         tools = mcp._tool_manager._tools  # pyright: ignore[reportPrivateUsage]
-        expected_names = {
+        # Core tools that must always be present
+        core_tools = {
             "search_components",
             "get_component_detail",
             "install_components",
@@ -39,7 +41,7 @@ class TestToolRegistration:
             "ingest_repo",
         }
         actual_names = set(tools.keys())
-        assert expected_names == actual_names, f"Expected {expected_names}, got {actual_names}"
+        assert core_tools.issubset(actual_names), f"Missing core tools: {core_tools - actual_names}"
 
 
 class TestSchemasSerialization:

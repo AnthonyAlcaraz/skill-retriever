@@ -374,3 +374,24 @@ class SecurityAuditResult(BaseModel):
     critical_risk_count: int
     flagged_components: list[str] = Field(description="Component IDs at or above threshold")
     top_findings: list[SecurityFindingResult] = Field(description="Most common finding patterns")
+
+
+class BackfillSecurityInput(BaseModel):
+    """Input for backfill_security_scans tool."""
+
+    batch_size: int = Field(default=100, description="Components to scan per batch")
+    force_rescan: bool = Field(default=False, description="Rescan already-scanned components")
+
+
+class BackfillSecurityResult(BaseModel):
+    """Result of security backfill operation."""
+
+    total_components: int
+    scanned_count: int
+    skipped_count: int = Field(description="Already scanned (not force_rescan)")
+    safe_count: int
+    low_risk_count: int
+    medium_risk_count: int
+    high_risk_count: int
+    critical_risk_count: int
+    errors: list[str] = Field(default_factory=list)

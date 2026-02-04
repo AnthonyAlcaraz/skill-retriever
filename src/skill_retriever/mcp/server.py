@@ -42,6 +42,8 @@ from skill_retriever.mcp.schemas import (
     RunPipelineInput,
     SearchInput,
     SearchResult,
+    BackfillSecurityInput,
+    BackfillSecurityResult,
     SecurityAuditInput,
     SecurityAuditResult,
     SecurityFindingResult,
@@ -1185,7 +1187,7 @@ async def security_audit(input: SecurityAuditInput) -> SecurityAuditResult:
     flagged: list[str] = []
     finding_counts: dict[str, int] = {}
 
-    for comp_id, component in metadata_store._components.items():
+    for comp_id, component in metadata_store._cache.items():
         total += 1
         risk_level = component.security_risk_level
 
@@ -1222,6 +1224,104 @@ async def security_audit(input: SecurityAuditInput) -> SecurityAuditResult:
         critical_risk_count=critical,
         flagged_components=flagged[:50],  # Limit to 50
         top_findings=top_findings,
+    )
+
+
+@mcp.tool
+async def backfill_security_scans(input: BackfillSecurityInput) -> BackfillSecurityResult:
+    """Backfill security scans for existing components.
+
+    Scans all components in the metadata store that don't have security data,
+    or all components if force_rescan=True.
+    """
+    from skill_retriever.security import SecurityScanner
+
+    metadata_store = await get_metadata_store()
+    scanner = SecurityScanner()
+
+    total = len(metadata_store)
+    scanned = 0
+    skipped = 0
+    errors: list[str] = []
+
+    # Counters by risk level
+    safe = 0
+    low = 0
+    medium = 0
+    high = 0
+    critical = 0
+
+    for comp_id, component in list(metadata_store._cache.items()):
+        # Skip if already scanned (unless force_rescan)
+        if not input.force_rescan and component.security_risk_level != "unknown":
+            skipped += 1
+            continue
+
+        try:
+            # Scan component
+            result = scanner.scan_component(component)
+
+            # Create updated component with security fields
+            updated = ComponentMetadata(
+                id=component.id,
+                name=component.name,
+                component_type=component.component_type,
+                description=component.description,
+                tags=list(component.tags),
+                author=component.author,
+                version=component.version,
+                last_updated=component.last_updated,
+                commit_count=component.commit_count,
+                commit_frequency_30d=component.commit_frequency_30d,
+                raw_content=component.raw_content,
+                parameters=dict(component.parameters),
+                dependencies=list(component.dependencies),
+                tools=list(component.tools),
+                source_repo=component.source_repo,
+                source_path=component.source_path,
+                category=component.category,
+                install_url=component.install_url,
+                # Security fields
+                security_risk_level=result.risk_level.value,
+                security_risk_score=result.risk_score,
+                security_findings_count=result.finding_count,
+                has_scripts=result.has_scripts,
+            )
+            metadata_store.add(updated)
+            scanned += 1
+
+            # Count by risk level
+            level = result.risk_level.value
+            if level == "safe":
+                safe += 1
+            elif level == "low":
+                low += 1
+            elif level == "medium":
+                medium += 1
+            elif level == "high":
+                high += 1
+            elif level == "critical":
+                critical += 1
+
+        except Exception as e:
+            errors.append(f"Failed to scan {comp_id}: {e}")
+            logger.exception("Failed to scan component %s", comp_id)
+
+    # Persist updated metadata
+    metadata_store.save()
+    logger.info("Backfill complete: scanned %d, skipped %d, errors %d",
+                scanned, skipped, len(errors))
+
+    return BackfillSecurityResult(
+        total_components=total,
+        scanned_count=scanned,
+        skipped_count=skipped,
+        safe_count=safe,
+        low_risk_count=low,
+        medium_risk_count=medium,
+        high_risk_count=high,
+        critical_risk_count=critical,
+        errors=errors[:20],  # Limit errors
     )
 
 

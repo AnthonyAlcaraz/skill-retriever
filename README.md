@@ -445,7 +445,30 @@ Scans components for security vulnerabilities during ingestion and on-demand:
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Key insight**: Security scanning catches 26%+ of vulnerable patterns before they reach your codebase. The system flags data exfiltration, credential access, privilege escalation, and code obfuscation.
+**Key insight**: Security scanning catches 22%+ of potentially vulnerable patterns before they reach your codebase. The system flags data exfiltration, credential access, privilege escalation, and code obfuscation.
+
+**Current Index Statistics:**
+| Risk Level | Count | % |
+|------------|-------|---|
+| Safe | 796 | 77.5% |
+| Low | 2 | 0.2% |
+| Medium | 19 | 1.9% |
+| High | 8 | 0.8% |
+| Critical | 202 | 19.7% |
+
+**Top Finding Patterns (in CRITICAL components):**
+| Pattern | Count | Notes |
+|---------|-------|-------|
+| `shell_injection` | 424 | Many are bash examples in markdown (false positives) |
+| `webhook_post` | 87 | Discord/Slack webhook URLs |
+| `env_harvest_all` | 74 | `process.env` / `os.environ` access |
+| `ssh_key_access` | 51 | References to `.ssh/` paths |
+| `http_post_with_data` | 38 | HTTP POST with data payload |
+
+**Known Limitations:**
+- The `shell_injection` pattern has false positives for bash code blocks in markdown
+- Webhook patterns flag legitimate integrations (Discord bots, Slack notifications)
+- Future: LLM-assisted false positive reduction (SEC-02)
 
 ## Integration with Claude Code
 
@@ -505,6 +528,7 @@ Once configured, Claude Code can use these tools:
 | **Security Scanning** | |
 | `security_scan` | Scan a specific component for vulnerabilities |
 | `security_audit` | Audit all components, report by risk level |
+| `backfill_security_scans` | Scan existing components that haven't been scanned |
 
 ### Example Conversation
 
@@ -543,6 +567,115 @@ Installed 4 components to .claude/:
 - hooks/conventional-commits.md
 
 You can now use `/commit` to create conventional commits!
+```
+
+### Workflow with Security Integration
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                 Claude Code + Skill Retriever Workflow           │
+│                                                                  │
+│  1. USER: "I need JWT authentication"                           │
+│                    │                                             │
+│                    ▼                                             │
+│  2. CLAUDE: search_components("JWT authentication")              │
+│                    │                                             │
+│                    ▼                                             │
+│  3. SKILL RETRIEVER returns:                                     │
+│     ┌────────────────────────────────────────────────────┐      │
+│     │ auth-jwt-skill                                      │      │
+│     │   Score: 0.89                                       │      │
+│     │   Health: active (2 days ago)                       │      │
+│     │   Security: ⚠️ MEDIUM (env_sensitive_keys)          │      │
+│     │   Tokens: 320                                       │      │
+│     │                                                     │      │
+│     │ crypto-utils                                        │      │
+│     │   Score: 0.72                                       │      │
+│     │   Health: active                                    │      │
+│     │   Security: ✅ SAFE                                 │      │
+│     │   Tokens: 180                                       │      │
+│     └────────────────────────────────────────────────────┘      │
+│                    │                                             │
+│                    ▼                                             │
+│  4. CLAUDE: "auth-jwt-skill has MEDIUM security risk             │
+│              (accesses JWT_SECRET from env). Proceed?"           │
+│                    │                                             │
+│                    ▼                                             │
+│  5. USER: "Yes, that's expected for JWT"                        │
+│                    │                                             │
+│                    ▼                                             │
+│  6. CLAUDE: install_components(["auth-jwt-skill"])               │
+│                    │                                             │
+│                    ▼                                             │
+│  7. SKILL RETRIEVER:                                             │
+│     - Resolves dependencies (adds crypto-utils)                  │
+│     - Writes to .claude/skills/                                  │
+│     - Records INSTALL_SUCCESS outcome                            │
+│                    │                                             │
+│                    ▼                                             │
+│  8. CLAUDE: "Installed auth-jwt-skill + crypto-utils.            │
+│              Note: Requires JWT_SECRET env variable."            │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Security-Aware Retrieval
+
+When `search_components` returns results, each component includes:
+
+```json
+{
+  "id": "owner/repo/skill/auth-jwt",
+  "name": "auth-jwt",
+  "type": "skill",
+  "score": 0.89,
+  "rationale": "High semantic match + required dependency",
+  "token_cost": 320,
+  "health": {
+    "status": "active",
+    "last_updated": "2026-02-02T10:30:00Z",
+    "commit_frequency": "high"
+  },
+  "security": {
+    "risk_level": "medium",
+    "risk_score": 25.0,
+    "findings_count": 1,
+    "has_scripts": false
+  }
+}
+```
+
+**Best Practice**: Claude should surface security warnings to users before installation, especially for CRITICAL and HIGH risk components.
+
+### Backfilling Existing Components
+
+If you have components indexed before SEC-01 was implemented:
+
+```
+User: Run a security audit on all components
+
+Claude: [Calls security_audit(risk_level="medium")]
+
+Security Audit Results:
+- Total: 1027 components
+- Safe: 796 (77.5%)
+- Low: 2 (0.2%)
+- Medium: 19 (1.9%)
+- High: 8 (0.8%)
+- Critical: 202 (19.7%)
+
+Would you like to see the flagged components?
+
+User: Yes, show critical ones
+
+Claude: [Shows list of critical components with their findings]
+
+Note: Many "shell_injection" findings are false positives from
+bash code examples in markdown. Review manually for true concerns.
+```
+
+To backfill security scans for components indexed before SEC-01:
+```
+Claude: [Calls backfill_security_scans(force_rescan=false)]
 ```
 
 ## Data Flow Summary
@@ -603,7 +736,8 @@ You can now use `/commit` to create conventional commits!
 - RETR-05: LLM-assisted query rewriting
 - LRNG-01/02: Collaborative filtering from usage patterns
 - HLTH-02: Deprecation warnings
-- SEC-02: Real-time re-scanning of installed components
+- SEC-02: LLM-assisted false positive reduction for security scanning
+- SEC-03: Real-time re-scanning of installed components
 
 ## Development
 
