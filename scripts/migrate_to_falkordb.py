@@ -52,7 +52,7 @@ def main() -> None:
         data = json.load(f)
 
     nodes = data.get("nodes", [])
-    links = data.get("links", [])
+    links = data.get("links", data.get("edges", []))
     print(f"  Found {len(nodes)} nodes, {len(links)} edges")
 
     # Connect to FalkorDB
