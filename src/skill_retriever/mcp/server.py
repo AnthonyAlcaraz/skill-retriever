@@ -89,6 +89,7 @@ _metadata_store: MetadataStore | None = None
 _component_memory: ComponentMemory | None = None
 _outcome_tracker: "OutcomeTracker | None" = None
 _sync_manager: "SyncManager | None" = None
+_auto_sync_started = False
 
 # Background loading synchronization
 _stores_ready = threading.Event()
@@ -258,6 +259,28 @@ async def _wait_for_stores() -> None:
             )
     if _init_error is not None:
         raise RuntimeError("Store initialization failed") from _init_error
+
+    # Auto-start repo polling after stores are ready (one-shot)
+    global _auto_sync_started
+    if not _auto_sync_started:
+        _auto_sync_started = True
+        asyncio.ensure_future(_auto_start_sync())
+
+
+async def _auto_start_sync() -> None:
+    """Start the sync manager poller in the background.
+
+    Runs as a fire-and-forget task so it never blocks tool calls.
+    Errors are logged but don't affect normal operation.
+    """
+    try:
+        sync_mgr = await get_sync_manager()
+        if not sync_mgr._poller._running:
+            await sync_mgr._poller.start()
+            logger.info("Auto-sync poller started (interval: %ds)",
+                        sync_mgr._config.poll_interval_seconds)
+    except Exception:
+        logger.warning("Failed to auto-start sync poller (non-fatal)")
 
 
 async def get_pipeline() -> RetrievalPipeline:
