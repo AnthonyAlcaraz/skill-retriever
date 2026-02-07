@@ -6,7 +6,7 @@ from dataclasses import dataclass
 
 import networkx as nx
 
-from skill_retriever.memory.graph_store import GraphStore, NetworkXGraphStore
+from skill_retriever.memory.graph_store import GraphStore
 
 FLOW_CONFIG = {
     "alpha": 0.85,
@@ -99,10 +99,7 @@ def flow_based_pruning(
     if not ppr_scores:
         return []
 
-    # Get internal graph (need to access _graph for path finding)
-    if not isinstance(graph_store, NetworkXGraphStore):
-        return []
-    graph = graph_store._graph  # pyright: ignore[reportPrivateUsage]
+    graph = graph_store.nx_graph
 
     # Get top endpoints from PPR scores
     endpoints = sorted(ppr_scores.items(), key=lambda x: x[1], reverse=True)[

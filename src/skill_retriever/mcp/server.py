@@ -6,6 +6,7 @@ import asyncio
 import threading
 import logging
 import re
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -63,6 +64,7 @@ from skill_retriever.mcp.schemas import (
 
 
 if TYPE_CHECKING:
+    from skill_retriever.memory.falkordb_store import FalkorDBGraphStore
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.metadata_store import MetadataStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
@@ -114,6 +116,40 @@ if TYPE_CHECKING:
     from skill_retriever.sync.manager import SyncManager
 
 
+def _try_falkordb_store() -> "FalkorDBGraphStore | None":
+    """Try to create a FalkorDB-backed graph store. Returns None if unavailable."""
+    falkordb_host = os.environ.get("FALKORDB_HOST", "localhost")
+    falkordb_port = int(os.environ.get("FALKORDB_PORT", "6379"))
+
+    try:
+        from skill_retriever.memory.falkordb_connection import FalkorDBConfig, FalkorDBConnection
+        from skill_retriever.memory.falkordb_store import FalkorDBGraphStore
+
+        config = FalkorDBConfig(
+            host=falkordb_host,
+            port=falkordb_port,
+            graph_name="skill_retriever",
+            max_retries=2,
+            retry_base_delay=0.3,
+        )
+        conn = FalkorDBConnection(config)
+        conn.connect()
+
+        store = FalkorDBGraphStore(connection=conn, fallback_path=str(_GRAPH_PATH))
+        store.sync_from_falkordb()
+
+        # If FalkorDB has no data but JSON exists, load from JSON as initial state
+        if store.node_count() == 0 and _GRAPH_PATH.exists():
+            store.load(str(_GRAPH_PATH))
+
+        store.ensure_indexes()
+        logger.info("Using FalkorDB graph store: %d nodes", store.node_count())
+        return store
+    except Exception:
+        logger.info("FalkorDB unavailable, falling back to NetworkX graph store")
+        return None
+
+
 def _load_stores_sync() -> None:
     """Load all stores in a background thread. Sets _stores_ready when done."""
     global _pipeline, _graph_store, _vector_store, _metadata_store
@@ -130,15 +166,16 @@ def _load_stores_sync() -> None:
 
         logger.info("Background: loading stores...")
 
-        # Load all stores (these are independent, but we're already in a thread
-        # so the main event loop stays unblocked)
-        gs = NetworkXGraphStore()
-        if _GRAPH_PATH.exists():
-            try:
-                gs.load(str(_GRAPH_PATH))
-                logger.info("Loaded graph store: %d nodes", gs.node_count())
-            except Exception:
-                logger.exception("Failed to load graph store, starting fresh")
+        # Try FalkorDB first, fallback to NetworkX
+        gs = _try_falkordb_store()
+        if gs is None:
+            gs = NetworkXGraphStore()
+            if _GRAPH_PATH.exists():
+                try:
+                    gs.load(str(_GRAPH_PATH))
+                    logger.info("Loaded graph store (NetworkX): %d nodes", gs.node_count())
+                except Exception:
+                    logger.exception("Failed to load graph store, starting fresh")
 
         vs = VectorStore()
         if _VECTOR_DIR.exists():

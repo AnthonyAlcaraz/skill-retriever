@@ -682,6 +682,19 @@ lua = [
 ]
 
 [[package]]
+name = "falkordb"
+version = "1.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "python-dateutil" },
+    { name = "redis" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/14/0e/95ef4ac84130b7d2bb87b357648cdfe9414abea10e066aca4737be21375a/falkordb-1.4.0.tar.gz", hash = "sha256:89b6bd02f0e0ce214852cc07c0be3fa44bb3a08daf39d343f790c7a92b50636f", size = 30344, upload-time = "2025-12-24T15:43:47.671Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a0/ef/b03cd82bc93479745ca0b58b4cee176cda0cf6ba353c24613ec0a8143093/falkordb-1.4.0-py3-none-any.whl", hash = "sha256:3ede67ebf096013e93f46f3365e9c4a68a5bc3e0116eec88d22540422d335601", size = 36197, upload-time = "2025-12-24T15:43:46.488Z" },
+]
+
+[[package]]
 name = "fastembed"
 version = "0.7.4"
 source = { registry = "https://pypi.org/simple" }
@@ -2959,6 +2972,7 @@ source = { editable = "." }
 dependencies = [
     { name = "aiohttp" },
     { name = "faiss-cpu" },
+    { name = "falkordb" },
     { name = "fastembed" },
     { name = "fastmcp" },
     { name = "gitpython" },
@@ -2985,6 +2999,7 @@ dev = [
 requires-dist = [
     { name = "aiohttp", specifier = ">=3.11" },
     { name = "faiss-cpu", specifier = ">=1.13.2" },
+    { name = "falkordb", specifier = ">=1.4.0" },
     { name = "fastembed", specifier = ">=0.7.4" },
     { name = "fastmcp", specifier = ">=2.14,<3" },
     { name = "gitpython", specifier = ">=3.1.44" },

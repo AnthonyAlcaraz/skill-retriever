@@ -8,7 +8,6 @@ from typing import TYPE_CHECKING
 import networkx as nx
 
 from skill_retriever.entities.graph import EdgeType
-from skill_retriever.memory.graph_store import NetworkXGraphStore
 from skill_retriever.workflows.models import ConflictInfo
 
 if TYPE_CHECKING:
@@ -38,23 +37,8 @@ def resolve_transitive_dependencies(
     if not component_ids:
         return set(), []
 
-    # Need access to internal graph for nx.descendants
-    if not isinstance(graph_store, NetworkXGraphStore):
-        # Fallback: return original components unchanged
-        logger.warning(
-            "Cannot resolve transitive dependencies: graph store is not NetworkXGraphStore"
-        )
-        return set(component_ids), []
-
-    graph = graph_store._graph  # pyright: ignore[reportPrivateUsage]
-
-    # Build subgraph with only DEPENDS_ON edges
-    depends_on_edges = [
-        (u, v)
-        for u, v, data in graph.edges(data=True)
-        if data.get("edge_type") == str(EdgeType.DEPENDS_ON)
-    ]
-    depends_on_subgraph: nx.DiGraph[str] = nx.DiGraph(depends_on_edges)
+    graph = graph_store.nx_graph
+    depends_on_subgraph = graph_store.get_depends_on_subgraph()
 
     # Check for cycles (log warning but continue)
     if not nx.is_directed_acyclic_graph(depends_on_subgraph):

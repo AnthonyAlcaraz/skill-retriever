@@ -195,3 +195,61 @@ class TestProtocolIsinstance:
     def test_isinstance(self) -> None:
         store = NetworkXGraphStore()
         assert isinstance(store, GraphStore)
+
+
+class TestNxGraphProperty:
+    """Test 11: nx_graph property returns the internal DiGraph."""
+
+    def test_nx_graph_returns_digraph(self) -> None:
+        import networkx as nx
+
+        store = NetworkXGraphStore()
+        store.add_node(_make_node("a"))
+        store.add_node(_make_node("b"))
+        store.add_edge(_make_edge("a", "b"))
+
+        graph = store.nx_graph
+        assert isinstance(graph, nx.DiGraph)
+        assert "a" in graph
+        assert graph.has_edge("a", "b")
+
+
+class TestGetLabelIndex:
+    """Test 12: get_label_index returns correct label-to-IDs mapping."""
+
+    def test_label_index_basic(self) -> None:
+        store = NetworkXGraphStore()
+        store.add_node(_make_node("a", "Git Helper"))
+        store.add_node(_make_node("b", "Docker Setup"))
+        store.add_node(_make_node("c", "Git Helper"))
+
+        index = store.get_label_index()
+        assert "git helper" in index
+        assert sorted(index["git helper"]) == ["a", "c"]
+        assert index["docker setup"] == ["b"]
+
+    def test_empty_graph_returns_empty(self) -> None:
+        store = NetworkXGraphStore()
+        assert store.get_label_index() == {}
+
+
+class TestGetDependsOnSubgraph:
+    """Test 13: get_depends_on_subgraph filters to DEPENDS_ON edges only."""
+
+    def test_subgraph_filters(self) -> None:
+        store = NetworkXGraphStore()
+        for nid in ("a", "b", "c"):
+            store.add_node(_make_node(nid))
+        store.add_edge(_make_edge("a", "b", EdgeType.DEPENDS_ON))
+        store.add_edge(_make_edge("b", "c", EdgeType.ENHANCES))
+        store.add_edge(_make_edge("a", "c", EdgeType.DEPENDS_ON))
+
+        subgraph = store.get_depends_on_subgraph()
+        assert subgraph.has_edge("a", "b")
+        assert subgraph.has_edge("a", "c")
+        assert not subgraph.has_edge("b", "c")
+
+    def test_empty_graph_returns_empty_subgraph(self) -> None:
+        store = NetworkXGraphStore()
+        subgraph = store.get_depends_on_subgraph()
+        assert subgraph.number_of_nodes() == 0

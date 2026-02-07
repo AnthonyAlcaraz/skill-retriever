@@ -40,6 +40,13 @@ class GraphStore(Protocol):
 
     def load(self, path: str) -> None: ...
 
+    @property
+    def nx_graph(self) -> nx.DiGraph[str]: ...
+
+    def get_label_index(self) -> dict[str, list[str]]: ...
+
+    def get_depends_on_subgraph(self) -> nx.DiGraph[str]: ...
+
 
 class NetworkXGraphStore:
     """NetworkX-backed directed graph store with Personalized PageRank support."""
@@ -204,3 +211,31 @@ class NetworkXGraphStore:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
         self._graph = nx.node_link_graph(data, directed=True)  # pyright: ignore[reportUnknownMemberType]
+
+    @property
+    def nx_graph(self) -> nx.DiGraph[str]:
+        """Return the internal NetworkX graph for algorithms requiring direct access."""
+        return self._graph
+
+    def get_label_index(self) -> dict[str, list[str]]:
+        """Build inverted index from lowercase labels to node IDs."""
+        label_to_ids: dict[str, list[str]] = {}
+        for node_id in self._graph.nodes:
+            data: dict[str, Any] = dict(self._graph.nodes[node_id])
+            label = str(data.get("label", "")).lower()
+            if label:
+                if label not in label_to_ids:
+                    label_to_ids[label] = []
+                label_to_ids[label].append(str(node_id))
+        return label_to_ids
+
+    def get_depends_on_subgraph(self) -> nx.DiGraph[str]:
+        """Return a subgraph containing only DEPENDS_ON edges."""
+        from skill_retriever.entities.graph import EdgeType
+
+        depends_on_edges = [
+            (u, v)
+            for u, v, data in self._graph.edges(data=True)
+            if data.get("edge_type") == str(EdgeType.DEPENDS_ON)
+        ]
+        return nx.DiGraph(depends_on_edges)

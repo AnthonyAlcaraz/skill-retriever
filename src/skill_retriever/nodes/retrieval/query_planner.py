@@ -158,21 +158,7 @@ def _build_label_index(graph_store: GraphStore) -> dict[str, list[str]]:
     Returns:
         Dict mapping lowercase labels to list of node IDs.
     """
-    from skill_retriever.memory.graph_store import NetworkXGraphStore
-
-    label_to_ids: dict[str, list[str]] = {}
-
-    if isinstance(graph_store, NetworkXGraphStore):
-        nx_graph: Any = graph_store._graph  # pyright: ignore[reportPrivateUsage]
-        for node_id in nx_graph.nodes:
-            node_data: dict[str, Any] = dict(nx_graph.nodes[node_id])
-            label = str(node_data.get("label", "")).lower()
-            if label:
-                if label not in label_to_ids:
-                    label_to_ids[label] = []
-                label_to_ids[label].append(str(node_id))
-
-    return label_to_ids
+    return graph_store.get_label_index()
 
 
 def extract_query_entities(query: str, graph_store: GraphStore) -> set[str]:

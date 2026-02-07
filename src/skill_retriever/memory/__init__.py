@@ -12,6 +12,8 @@ from skill_retriever.memory.feedback_engine import (
     SuggestionType,
 )
 from skill_retriever.memory.graph_store import GraphStore, NetworkXGraphStore
+from skill_retriever.memory.falkordb_connection import FalkorDBConfig, FalkorDBConnection
+from skill_retriever.memory.falkordb_store import FalkorDBGraphStore
 from skill_retriever.memory.metadata_store import MetadataStore
 from skill_retriever.memory.outcome_tracker import (
     ComponentOutcome,
@@ -28,6 +30,9 @@ __all__ = [
     "ComponentUsageStats",
     "CoSelectionEntry",
     "EdgeSuggestion",
+    "FalkorDBConfig",
+    "FalkorDBConnection",
+    "FalkorDBGraphStore",
     "FAISSVectorStore",
     "FeedbackEngine",
     "GraphStore",

@@ -239,3 +239,46 @@ ingest_repo(repo_url="<source repo>")
 | Ingestion cache | `~/.skill-retriever/data/ingestion-cache.json` |
 | Repo registry | `~/.skill-retriever/repo-registry.json` |
 | Installed components | `.claude/` in target project |
+
+## FalkorDB Graph Backend
+
+The graph store supports a hybrid FalkorDB + NetworkX architecture:
+- **FalkorDB** = persistent graph database (Cypher queries, survives restarts)
+- **NetworkX** = in-memory mirror for PPR, path algorithms
+- **Fallback** = if FalkorDB is unavailable, uses JSON (`graph.json`) like before
+
+### Setup
+
+FalkorDB runs via Docker (shared with TDK system):
+
+```bash
+# Check if FalkorDB is running
+docker ps | grep falkordb
+
+# If not running, start it
+docker run -d --name falkordb_migration -p 6379:6379 falkordb/falkordb:latest
+```
+
+### Configuration
+
+Environment variables (defaults work for local dev):
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `FALKORDB_HOST` | `localhost` | FalkorDB host |
+| `FALKORDB_PORT` | `6379` | FalkorDB port |
+
+### Migration
+
+One-time migration from `graph.json` to FalkorDB:
+
+```bash
+uv run python scripts/migrate_to_falkordb.py
+```
+
+### How It Works
+
+1. On startup, MCP server tries to connect to FalkorDB
+2. If connected: syncs all nodes/edges into NetworkX mirror, uses write-through for updates
+3. If FalkorDB is down: falls back to `NetworkXGraphStore` (loads from `graph.json`)
+4. PPR and path algorithms always run on the NetworkX mirror (FalkorDB lacks built-in PPR)
