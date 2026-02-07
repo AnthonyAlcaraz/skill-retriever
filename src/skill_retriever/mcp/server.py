@@ -225,13 +225,28 @@ def _ensure_init_started() -> None:
 # Background loading is triggered on first tool call via _ensure_init_started()
 
 
+# Maximum time to wait for store initialization (seconds)
+_INIT_TIMEOUT = 30
+
 async def _wait_for_stores() -> None:
-    """Wait for background store loading to complete without blocking the event loop."""
+    """Wait for background store loading to complete without blocking the event loop.
+
+    Raises TimeoutError if initialization takes longer than _INIT_TIMEOUT seconds.
+    """
     if _stores_ready.is_set():
+        if _init_error is not None:
+            raise RuntimeError("Store initialization failed") from _init_error
         return
     # Poll in async-friendly way so we don't block the event loop
-    while not _stores_ready.wait(timeout=0.05):
-        await asyncio.sleep(0.05)
+    import time as _time
+    deadline = _time.monotonic() + _INIT_TIMEOUT
+    while not _stores_ready.wait(timeout=0.1):
+        await asyncio.sleep(0.1)
+        if _time.monotonic() > deadline:
+            raise TimeoutError(
+                f"Store initialization timed out after {_INIT_TIMEOUT}s. "
+                "Check FalkorDB connectivity or embedding model availability."
+            )
     if _init_error is not None:
         raise RuntimeError("Store initialization failed") from _init_error
 

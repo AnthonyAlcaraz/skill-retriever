@@ -19,6 +19,7 @@ class FalkorDBConfig:
     graph_name: str = "skill_retriever"
     max_retries: int = 3
     retry_base_delay: float = 0.5
+    socket_timeout: float = 5.0
 
 
 class FalkorDBConnection:
@@ -44,6 +45,7 @@ class FalkorDBConnection:
                 self._db = falkordb.FalkorDB(
                     host=self._config.host,
                     port=self._config.port,
+                    socket_timeout=self._config.socket_timeout,
                 )
                 self._graph = self._db.select_graph(self._config.graph_name)
                 # Verify connectivity with a simple query
