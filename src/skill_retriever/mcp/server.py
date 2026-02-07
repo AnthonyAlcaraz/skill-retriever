@@ -209,6 +209,15 @@ def _load_stores_sync() -> None:
     finally:
         _stores_ready.set()
 
+    # Pre-warm fastembed model in background (non-blocking for tool calls)
+    try:
+        from skill_retriever.nodes.retrieval.vector_search import _get_embedding_model
+        logger.info("Background: pre-warming embedding model...")
+        _get_embedding_model()
+        logger.info("Embedding model ready")
+    except Exception:
+        logger.warning("Failed to pre-warm embedding model (will load on first search)")
+
 
 def _ensure_init_started() -> None:
     """Start background loading if not already started."""

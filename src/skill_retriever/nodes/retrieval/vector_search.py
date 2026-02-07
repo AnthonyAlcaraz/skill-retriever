@@ -4,24 +4,24 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastembed import TextEmbedding  # pyright: ignore[reportMissingTypeStubs]
-
 from skill_retriever.config import EMBEDDING_CONFIG
 from skill_retriever.nodes.retrieval.models import RankedComponent
 
 if TYPE_CHECKING:
+    from fastembed import TextEmbedding  # pyright: ignore[reportMissingTypeStubs]
     from skill_retriever.entities.components import ComponentType
     from skill_retriever.memory.graph_store import GraphStore
     from skill_retriever.memory.vector_store import FAISSVectorStore
 
 # Module-level singleton for expensive TextEmbedding model
-_embedding_model: TextEmbedding | None = None
+_embedding_model: "TextEmbedding | None" = None
 
 
-def _get_embedding_model() -> TextEmbedding:
-    """Get or create the TextEmbedding model singleton."""
+def _get_embedding_model() -> "TextEmbedding":
+    """Get or create the TextEmbedding model singleton (lazy-loads fastembed)."""
     global _embedding_model
     if _embedding_model is None:
+        from fastembed import TextEmbedding  # pyright: ignore[reportMissingTypeStubs]  # noqa: F811
         _embedding_model = TextEmbedding(
             model_name=EMBEDDING_CONFIG.model_name,
             cache_dir=EMBEDDING_CONFIG.cache_dir,
