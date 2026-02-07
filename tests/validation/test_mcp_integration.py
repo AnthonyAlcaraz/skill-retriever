@@ -28,6 +28,9 @@ async def mcp_client():
     from skill_retriever.mcp import server
 
     server._pipeline = None
+    server._stores_ready = __import__("threading").Event()
+    server._init_started = False
+    server._init_error = None
     server._graph_store = None
     server._vector_store = None
     server._metadata_store = None

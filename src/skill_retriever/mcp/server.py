@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import threading
 import logging
 import re
 import sys
@@ -11,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
-from git import Repo
+
 
 from skill_retriever.mcp.rationale import generate_rationale
 from skill_retriever.mcp.schemas import (
@@ -57,9 +58,9 @@ from skill_retriever.mcp.schemas import (
     TrackedRepo,
     UnregisterRepoInput,
 )
-from skill_retriever.entities.components import ComponentMetadata
-from skill_retriever.memory.component_memory import ComponentMemory
-from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
+
+
+
 
 if TYPE_CHECKING:
     from skill_retriever.memory.graph_store import GraphStore
@@ -78,7 +79,7 @@ logger = logging.getLogger(__name__)
 # Create FastMCP server instance
 mcp = FastMCP("skill-retriever")
 
-# Global state (lazy initialized)
+# Global state with background loading
 _pipeline: RetrievalPipeline | None = None
 _graph_store: GraphStore | None = None
 _vector_store: FAISSVectorStore | None = None
@@ -86,7 +87,12 @@ _metadata_store: MetadataStore | None = None
 _component_memory: ComponentMemory | None = None
 _outcome_tracker: "OutcomeTracker | None" = None
 _sync_manager: "SyncManager | None" = None
-_init_lock = asyncio.Lock()
+
+# Background loading synchronization
+_stores_ready = threading.Event()
+_init_error: Exception | None = None
+_init_started = False
+_init_lock = threading.Lock()
 
 if TYPE_CHECKING:
     from skill_retriever.memory.outcome_tracker import OutcomeTracker
@@ -108,96 +114,135 @@ if TYPE_CHECKING:
     from skill_retriever.sync.manager import SyncManager
 
 
+def _load_stores_sync() -> None:
+    """Load all stores in a background thread. Sets _stores_ready when done."""
+    global _pipeline, _graph_store, _vector_store, _metadata_store
+    global _component_memory, _outcome_tracker, _init_error
+
+    try:
+        from skill_retriever.memory.graph_store import NetworkXGraphStore
+        from skill_retriever.memory.metadata_store import MetadataStore as MetaStore
+        from skill_retriever.memory.outcome_tracker import OutcomeTracker as OTracker
+        from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
+        from skill_retriever.workflows.pipeline import RetrievalPipeline
+        from skill_retriever.memory.component_memory import ComponentMemory
+        from skill_retriever.entities.components import ComponentMetadata
+
+        logger.info("Background: loading stores...")
+
+        # Load all stores (these are independent, but we're already in a thread
+        # so the main event loop stays unblocked)
+        gs = NetworkXGraphStore()
+        if _GRAPH_PATH.exists():
+            try:
+                gs.load(str(_GRAPH_PATH))
+                logger.info("Loaded graph store: %d nodes", gs.node_count())
+            except Exception:
+                logger.exception("Failed to load graph store, starting fresh")
+
+        vs = VectorStore()
+        if _VECTOR_DIR.exists():
+            try:
+                vs.load(str(_VECTOR_DIR))
+                logger.info("Loaded vector store: %d vectors", vs.count)
+            except Exception:
+                logger.exception("Failed to load vector store, starting fresh")
+
+        cm = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
+        ot = OTracker.load(str(_OUTCOME_TRACKER_PATH))
+        logger.info("Loaded outcome tracker: %d components tracked", len(ot.outcomes))
+
+        pipeline = RetrievalPipeline(gs, vs, component_memory=cm)
+
+        ms = MetaStore(_METADATA_PATH)
+        logger.info("Loaded metadata store: %d components", len(ms))
+
+        # Assign to globals atomically
+        _graph_store = gs
+        _vector_store = vs
+        _component_memory = cm
+        _outcome_tracker = ot
+        _metadata_store = ms
+        _pipeline = pipeline
+
+        logger.info("All stores loaded successfully")
+    except Exception as exc:
+        logger.exception("Failed to load stores in background")
+        _init_error = exc
+    finally:
+        _stores_ready.set()
+
+
+def _ensure_init_started() -> None:
+    """Start background loading if not already started."""
+    global _init_started
+    with _init_lock:
+        if not _init_started:
+            _init_started = True
+            t = threading.Thread(target=_load_stores_sync, daemon=True)
+            t.start()
+            logger.info("Background store loading started")
+
+
+# NOTE: Do not auto-start here. Module import triggers during tests too.
+# Background loading is triggered on first tool call via _ensure_init_started()
+
+
+async def _wait_for_stores() -> None:
+    """Wait for background store loading to complete without blocking the event loop."""
+    if _stores_ready.is_set():
+        return
+    # Poll in async-friendly way so we don't block the event loop
+    while not _stores_ready.wait(timeout=0.05):
+        await asyncio.sleep(0.05)
+    if _init_error is not None:
+        raise RuntimeError("Store initialization failed") from _init_error
+
+
 async def get_pipeline() -> RetrievalPipeline:
-    """Get or initialize the retrieval pipeline, loading from persistent storage."""
-    global _pipeline, _graph_store, _vector_store, _metadata_store, _component_memory, _outcome_tracker
-
-    async with _init_lock:
-        if _pipeline is None:
-            from skill_retriever.memory.graph_store import NetworkXGraphStore
-            from skill_retriever.memory.metadata_store import (
-                MetadataStore as MetaStore,
-            )
-            from skill_retriever.memory.outcome_tracker import (
-                OutcomeTracker as OTracker,
-            )
-            from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
-            from skill_retriever.workflows.pipeline import RetrievalPipeline
-
-            logger.info("Initializing retrieval pipeline...")
-
-            # Initialize graph store and load from disk if exists
-            _graph_store = NetworkXGraphStore()
-            if _GRAPH_PATH.exists():
-                try:
-                    _graph_store.load(str(_GRAPH_PATH))
-                    logger.info("Loaded graph store: %d nodes", _graph_store.node_count())
-                except Exception:
-                    logger.exception("Failed to load graph store, starting fresh")
-
-            # Initialize vector store and load from disk if exists
-            _vector_store = VectorStore()
-            if _VECTOR_DIR.exists():
-                try:
-                    _vector_store.load(str(_VECTOR_DIR))
-                    logger.info("Loaded vector store: %d vectors", _vector_store.count)
-                except Exception:
-                    logger.exception("Failed to load vector store, starting fresh")
-
-            # Initialize component memory for usage tracking (LRNG-03)
-            _component_memory = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
-
-            # Initialize outcome tracker for execution feedback (LRNG-05)
-            _outcome_tracker = OTracker.load(str(_OUTCOME_TRACKER_PATH))
-            logger.info(
-                "Loaded outcome tracker: %d components tracked",
-                len(_outcome_tracker.outcomes)
-            )
-
-            _pipeline = RetrievalPipeline(
-                _graph_store, _vector_store, component_memory=_component_memory
-            )
-
-            # Initialize metadata store with persistent path
-            _metadata_store = MetaStore(_METADATA_PATH)
-            logger.info("Loaded metadata store: %d components", len(_metadata_store))
-
-            logger.info("Pipeline initialized with persistent storage at %s", _STORAGE_DIR)
-
-        return _pipeline
+    """Get the retrieval pipeline, waiting for background load if needed."""
+    _ensure_init_started()
+    await _wait_for_stores()
+    assert _pipeline is not None
+    return _pipeline
 
 
 async def get_graph_store() -> GraphStore:
-    """Get the graph store, initializing if needed."""
-    await get_pipeline()  # Ensures stores are initialized
+    """Get the graph store, waiting for background load if needed."""
+    _ensure_init_started()
+    await _wait_for_stores()
     assert _graph_store is not None
     return _graph_store
 
 
 async def get_vector_store() -> FAISSVectorStore:
-    """Get the vector store, initializing if needed."""
-    await get_pipeline()  # Ensures stores are initialized
+    """Get the vector store, waiting for background load if needed."""
+    _ensure_init_started()
+    await _wait_for_stores()
     assert _vector_store is not None
     return _vector_store
 
 
 async def get_metadata_store() -> MetadataStore:
-    """Get the metadata store, initializing if needed."""
-    await get_pipeline()  # Ensures stores are initialized
+    """Get the metadata store, waiting for background load if needed."""
+    _ensure_init_started()
+    await _wait_for_stores()
     assert _metadata_store is not None
     return _metadata_store
 
 
 async def get_component_memory() -> ComponentMemory:
     """Get the component memory for usage tracking."""
-    await get_pipeline()  # Ensures stores are initialized
+    _ensure_init_started()
+    await _wait_for_stores()
     assert _component_memory is not None
     return _component_memory
 
 
 async def get_outcome_tracker() -> "OutcomeTracker":
-    """Get the outcome tracker for execution feedback (LRNG-05)."""
-    await get_pipeline()  # Ensures stores are initialized
+    """Get the outcome tracker for execution feedback."""
+    _ensure_init_started()
+    await _wait_for_stores()
     assert _outcome_tracker is not None
     return _outcome_tracker
 
@@ -243,6 +288,7 @@ def _compute_health_status(metadata: "ComponentMetadata") -> HealthStatus:
 @mcp.tool
 async def search_components(input: SearchInput) -> SearchResult:
     """Search components by task."""
+    from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
     pipeline = await get_pipeline()
     graph_store = await get_graph_store()
     metadata_store = await get_metadata_store()
@@ -328,6 +374,7 @@ async def search_components(input: SearchInput) -> SearchResult:
 @mcp.tool
 async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
     """Get full component info."""
+    from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
     graph_store = await get_graph_store()
 
     node = graph_store.get_node(input.component_id)
@@ -488,6 +535,8 @@ def _parse_github_url(url: str) -> tuple[str, str]:
 @mcp.tool
 async def ingest_repo(input: IngestInput) -> IngestResult:
     """Index a component repository."""
+    from git import Repo
+    from skill_retriever.entities.components import ComponentMetadata
     from skill_retriever.memory.ingestion_cache import IngestionCache
 
     graph_store = await get_graph_store()
@@ -668,11 +717,15 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
     )
 
 
+# Separate lock for sync manager (lazy, not background-loaded)
+_sync_init_lock = asyncio.Lock()
+
+
 async def get_sync_manager() -> "SyncManager":
     """Get or initialize the sync manager."""
     global _sync_manager
 
-    async with _init_lock:
+    async with _sync_init_lock:
         if _sync_manager is None:
             from skill_retriever.sync.config import SYNC_CONFIG
             from skill_retriever.sync.manager import SyncManager
@@ -1237,6 +1290,7 @@ async def backfill_security_scans(input: BackfillSecurityInput) -> BackfillSecur
     Scans all components in the metadata store that don't have security data,
     or all components if force_rescan=True.
     """
+    from skill_retriever.entities.components import ComponentMetadata
     from skill_retriever.security import SecurityScanner
 
     metadata_store = await get_metadata_store()
