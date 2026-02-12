@@ -236,7 +236,7 @@ def _ensure_init_started() -> None:
 
 
 # Maximum time to wait for store initialization (seconds)
-_INIT_TIMEOUT = 30
+_INIT_TIMEOUT = 60
 
 async def _wait_for_stores() -> None:
     """Wait for background store loading to complete without blocking the event loop.
@@ -804,10 +804,26 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
 # Separate lock for sync manager (lazy, not background-loaded)
 _sync_init_lock = asyncio.Lock()
 
+# Lightweight registry access (no store dependency)
+_registry_instance: "RepoRegistry | None" = None
+
+
+def _get_registry_direct() -> "RepoRegistry":
+    """Get the repo registry without requiring full store initialization.
+
+    This allows read-only sync tools (list_tracked_repos, sync_status)
+    to work even when stores are still loading.
+    """
+    global _registry_instance
+    if _registry_instance is None:
+        from skill_retriever.sync.registry import RepoRegistry
+        _registry_instance = RepoRegistry()
+    return _registry_instance
+
 
 async def get_sync_manager() -> "SyncManager":
     """Get or initialize the sync manager."""
-    global _sync_manager
+    global _sync_manager, _registry_instance
 
     async with _sync_init_lock:
         if _sync_manager is None:
@@ -824,6 +840,8 @@ async def get_sync_manager() -> "SyncManager":
                 vector_store=vector_store,
                 metadata_store=metadata_store,
             )
+            # Keep direct registry in sync
+            _registry_instance = _sync_manager.registry
             logger.info("Sync manager initialized")
 
         return _sync_manager
@@ -877,8 +895,9 @@ async def unregister_repo(input: UnregisterRepoInput) -> bool:
 @mcp.tool
 async def list_tracked_repos() -> ListTrackedReposResult:
     """List all tracked repos."""
-    sync_manager = await get_sync_manager()
-    repos = sync_manager.registry.list_all()
+    # Use direct registry access (no store dependency) for read-only listing
+    registry = _get_registry_direct()
+    repos = registry.list_all()
 
     tracked = [
         TrackedRepo(
@@ -901,13 +920,24 @@ async def sync_status() -> SyncStatusResult:
     """Get sync system status."""
     from skill_retriever.sync.config import SYNC_CONFIG
 
-    sync_manager = await get_sync_manager()
-    repos = sync_manager.registry.list_all()
+    # Use direct registry for repo count (no store dependency)
+    registry = _get_registry_direct()
+    repos = registry.list_all()
+
+    # Check if sync manager exists and has running services
+    webhook_running = False
+    poller_running = False
+    if _sync_manager is not None:
+        try:
+            webhook_running = _sync_manager._webhook._site is not None
+            poller_running = _sync_manager._poller._running
+        except Exception:
+            pass
 
     return SyncStatusResult(
-        webhook_server_running=sync_manager._webhook._site is not None,
+        webhook_server_running=webhook_running,
         webhook_port=SYNC_CONFIG.webhook_port,
-        polling_enabled=SYNC_CONFIG.poll_enabled,
+        polling_enabled=poller_running if _sync_manager is not None else SYNC_CONFIG.poll_enabled,
         poll_interval_seconds=SYNC_CONFIG.poll_interval_seconds,
         tracked_repos=len(repos),
     )
