@@ -3,19 +3,51 @@
 from __future__ import annotations
 
 import asyncio
-import threading
 import logging
-import re
 import os
+import re
 import sys
 import tempfile
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 from fastmcp import FastMCP
+from git import Repo
 
-
+from skill_retriever.entities.components import ComponentMetadata, ComponentType
+from skill_retriever.entities.graph import EdgeType, GraphEdge, GraphNode
+from skill_retriever.mcp.installer import ComponentInstaller
 from skill_retriever.mcp.rationale import generate_rationale
+from skill_retriever.memory.component_memory import ComponentMemory
+from skill_retriever.memory.feedback_engine import FeedbackEngine, SuggestionType
+from skill_retriever.memory.graph_store import NetworkXGraphStore
+from skill_retriever.memory.ingestion_cache import IngestionCache
+from skill_retriever.memory.metadata_store import MetadataStore as MetaStore
+from skill_retriever.memory.outcome_tracker import OutcomeTracker, OutcomeType
+from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
+from skill_retriever.nodes.ingestion.crawler import RepositoryCrawler
+from skill_retriever.nodes.ingestion.resolver import EntityResolver
+from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
+from skill_retriever.nodes.retrieval.vector_search import (
+    _get_embedding_model,  # pyright: ignore[reportPrivateUsage]
+)
+from skill_retriever.security import (
+    LLMSecurityAnalyzer,
+    RiskLevel,
+    SecurityScanner,
+)
+from skill_retriever.sync.auto_heal import AutoHealer
+from skill_retriever.sync.config import SYNC_CONFIG
+from skill_retriever.sync.manager import SyncManager
+from skill_retriever.sync.oss_scout import OSSScout
+from skill_retriever.sync.pipeline import DiscoveryPipeline
+from skill_retriever.sync.registry import RepoRegistry
+from skill_retriever.workflows.dependency_resolver import (
+    detect_conflicts,
+    resolve_transitive_dependencies,
+)
+from skill_retriever.workflows.pipeline import RetrievalPipeline
 from skill_retriever.mcp.schemas import (
     ComponentDetail,
     ComponentDetailInput,
@@ -60,15 +92,8 @@ from skill_retriever.mcp.schemas import (
     UnregisterRepoInput,
 )
 
-
-
-
 if TYPE_CHECKING:
     from skill_retriever.memory.falkordb_store import FalkorDBGraphStore
-    from skill_retriever.memory.graph_store import GraphStore
-    from skill_retriever.memory.metadata_store import MetadataStore
-    from skill_retriever.memory.vector_store import FAISSVectorStore
-    from skill_retriever.workflows.pipeline import RetrievalPipeline
 
 # Configure logging to stderr (CRITICAL: never print to stdout for MCP)
 logging.basicConfig(
@@ -81,24 +106,18 @@ logger = logging.getLogger(__name__)
 # Create FastMCP server instance
 mcp = FastMCP("skill-retriever")
 
-# Global state with background loading
+# Global state — loaded lazily on first tool call
 _pipeline: RetrievalPipeline | None = None
-_graph_store: GraphStore | None = None
-_vector_store: FAISSVectorStore | None = None
-_metadata_store: MetadataStore | None = None
+_graph_store: NetworkXGraphStore | FalkorDBGraphStore | None = None
+_vector_store: VectorStore | None = None
+_metadata_store: MetaStore | None = None
 _component_memory: ComponentMemory | None = None
-_outcome_tracker: "OutcomeTracker | None" = None
-_sync_manager: "SyncManager | None" = None
+_outcome_tracker: OutcomeTracker | None = None
+_sync_manager: SyncManager | None = None
 _auto_sync_started = False
 
-# Background loading synchronization
-_stores_ready = threading.Event()
-_init_error: Exception | None = None
-_init_started = False
-_init_lock = threading.Lock()
-
-if TYPE_CHECKING:
-    from skill_retriever.memory.outcome_tracker import OutcomeTracker
+# Simple once-guard for store initialization
+_stores_loaded = False
 
 # Persistent storage directory (survives restarts)
 _STORAGE_DIR = Path.home() / ".skill-retriever" / "data"
@@ -111,10 +130,6 @@ _METADATA_PATH = _STORAGE_DIR / "metadata.json"
 _COMPONENT_MEMORY_PATH = _STORAGE_DIR / "component-memory.json"
 _OUTCOME_TRACKER_PATH = _STORAGE_DIR / "outcome-tracker.json"
 _INGESTION_CACHE_PATH = _STORAGE_DIR / "ingestion-cache.json"
-
-if TYPE_CHECKING:
-    from skill_retriever.memory.outcome_tracker import OutcomeTracker
-    from skill_retriever.sync.manager import SyncManager
 
 
 def _try_falkordb_store() -> "FalkorDBGraphStore | None":
@@ -130,8 +145,9 @@ def _try_falkordb_store() -> "FalkorDBGraphStore | None":
             host=falkordb_host,
             port=falkordb_port,
             graph_name="skill_retriever",
-            max_retries=2,
-            retry_base_delay=0.3,
+            max_retries=1,
+            retry_base_delay=0.1,
+            socket_timeout=1.0,
         )
         conn = FalkorDBConnection(config)
         conn.connect()
@@ -151,120 +167,63 @@ def _try_falkordb_store() -> "FalkorDBGraphStore | None":
         return None
 
 
+
 def _load_stores_sync() -> None:
-    """Load all stores in a background thread. Sets _stores_ready when done."""
+    """Load all stores synchronously."""
     global _pipeline, _graph_store, _vector_store, _metadata_store
-    global _component_memory, _outcome_tracker, _init_error
+    global _component_memory, _outcome_tracker
 
-    try:
-        from skill_retriever.memory.graph_store import NetworkXGraphStore
-        from skill_retriever.memory.metadata_store import MetadataStore as MetaStore
-        from skill_retriever.memory.outcome_tracker import OutcomeTracker as OTracker
-        from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
-        from skill_retriever.workflows.pipeline import RetrievalPipeline
-        from skill_retriever.memory.component_memory import ComponentMemory
-        from skill_retriever.entities.components import ComponentMetadata
-
-        logger.info("Background: loading stores...")
-
-        # Try FalkorDB first, fallback to NetworkX
-        gs = _try_falkordb_store()
-        if gs is None:
-            gs = NetworkXGraphStore()
-            if _GRAPH_PATH.exists():
-                try:
-                    gs.load(str(_GRAPH_PATH))
-                    logger.info("Loaded graph store (NetworkX): %d nodes", gs.node_count())
-                except Exception:
-                    logger.exception("Failed to load graph store, starting fresh")
-
-        vs = VectorStore()
-        if _VECTOR_DIR.exists():
+    # Try FalkorDB first, fallback to NetworkX
+    gs = _try_falkordb_store()
+    if gs is None:
+        gs = NetworkXGraphStore()
+        if _GRAPH_PATH.exists():
             try:
-                vs.load(str(_VECTOR_DIR))
-                logger.info("Loaded vector store: %d vectors", vs.count)
+                gs.load(str(_GRAPH_PATH))
+                logger.info("Loaded graph store (NetworkX): %d nodes", gs.node_count())
             except Exception:
-                logger.exception("Failed to load vector store, starting fresh")
+                logger.exception("Failed to load graph store, starting fresh")
 
-        cm = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
-        ot = OTracker.load(str(_OUTCOME_TRACKER_PATH))
-        logger.info("Loaded outcome tracker: %d components tracked", len(ot.outcomes))
+    vs = VectorStore()
+    if _VECTOR_DIR.exists():
+        try:
+            vs.load(str(_VECTOR_DIR))
+            logger.info("Loaded vector store: %d vectors", vs.count)
+        except Exception:
+            logger.exception("Failed to load vector store, starting fresh")
 
-        pipeline = RetrievalPipeline(gs, vs, component_memory=cm)
+    cm = ComponentMemory.load(str(_COMPONENT_MEMORY_PATH))
+    ot = OutcomeTracker.load(str(_OUTCOME_TRACKER_PATH))
+    logger.info("Loaded outcome tracker: %d components tracked", len(ot.outcomes))
 
-        ms = MetaStore(_METADATA_PATH)
-        logger.info("Loaded metadata store: %d components", len(ms))
+    pipeline = RetrievalPipeline(gs, vs, component_memory=cm)
 
-        # Assign to globals atomically
-        _graph_store = gs
-        _vector_store = vs
-        _component_memory = cm
-        _outcome_tracker = ot
-        _metadata_store = ms
-        _pipeline = pipeline
+    ms = MetaStore(_METADATA_PATH)
+    logger.info("Loaded metadata store: %d components", len(ms))
 
-        logger.info("All stores loaded successfully")
-    except Exception as exc:
-        logger.exception("Failed to load stores in background")
-        _init_error = exc
-    finally:
-        _stores_ready.set()
+    # Assign to globals
+    _graph_store = gs
+    _vector_store = vs
+    _component_memory = cm
+    _outcome_tracker = ot
+    _metadata_store = ms
+    _pipeline = pipeline
 
-    # Pre-warm fastembed model in background (non-blocking for tool calls)
-    try:
-        from skill_retriever.nodes.retrieval.vector_search import _get_embedding_model
-        logger.info("Background: pre-warming embedding model...")
-        _get_embedding_model()
-        logger.info("Embedding model ready")
-    except Exception:
-        logger.warning("Failed to pre-warm embedding model (will load on first search)")
+    logger.info("All stores loaded successfully")
 
 
-def _ensure_init_started() -> None:
-    """Start background loading if not already started."""
-    global _init_started
-    with _init_lock:
-        if not _init_started:
-            _init_started = True
-            t = threading.Thread(target=_load_stores_sync, daemon=True)
-            t.start()
-            logger.info("Background store loading started")
+async def _ensure_stores_loaded() -> None:
+    """Ensure stores are loaded exactly once.
 
-
-# NOTE: Do not auto-start here. Module import triggers during tests too.
-# Background loading is triggered on first tool call via _ensure_init_started()
-
-
-# Maximum time to wait for store initialization (seconds)
-_INIT_TIMEOUT = 60
-
-async def _wait_for_stores() -> None:
-    """Wait for background store loading to complete without blocking the event loop.
-
-    Raises TimeoutError if initialization takes longer than _INIT_TIMEOUT seconds.
+    Loads synchronously on first call — takes ~5s (graph + vectors + embedding model).
+    Subsequent calls return immediately.
     """
-    if _stores_ready.is_set():
-        if _init_error is not None:
-            raise RuntimeError("Store initialization failed") from _init_error
+    global _stores_loaded
+    if _stores_loaded:
         return
-    # Poll in async-friendly way so we don't block the event loop
-    import time as _time
-    deadline = _time.monotonic() + _INIT_TIMEOUT
-    while not _stores_ready.wait(timeout=0.1):
-        await asyncio.sleep(0.1)
-        if _time.monotonic() > deadline:
-            raise TimeoutError(
-                f"Store initialization timed out after {_INIT_TIMEOUT}s. "
-                "Check FalkorDB connectivity or embedding model availability."
-            )
-    if _init_error is not None:
-        raise RuntimeError("Store initialization failed") from _init_error
 
-    # Auto-start repo polling after stores are ready (one-shot)
-    global _auto_sync_started
-    if not _auto_sync_started:
-        _auto_sync_started = True
-        asyncio.ensure_future(_auto_start_sync())
+    _load_stores_sync()
+    _stores_loaded = True
 
 
 async def _auto_start_sync() -> None:
@@ -285,56 +244,48 @@ async def _auto_start_sync() -> None:
 
 async def get_pipeline() -> RetrievalPipeline:
     """Get the retrieval pipeline, waiting for background load if needed."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _pipeline is not None
     return _pipeline
 
 
-async def get_graph_store() -> GraphStore:
+async def get_graph_store() -> NetworkXGraphStore | FalkorDBGraphStore:
     """Get the graph store, waiting for background load if needed."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _graph_store is not None
     return _graph_store
 
 
-async def get_vector_store() -> FAISSVectorStore:
+async def get_vector_store() -> VectorStore:
     """Get the vector store, waiting for background load if needed."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _vector_store is not None
     return _vector_store
 
 
-async def get_metadata_store() -> MetadataStore:
+async def get_metadata_store() -> MetaStore:
     """Get the metadata store, waiting for background load if needed."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _metadata_store is not None
     return _metadata_store
 
 
 async def get_component_memory() -> ComponentMemory:
     """Get the component memory for usage tracking."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _component_memory is not None
     return _component_memory
 
 
-async def get_outcome_tracker() -> "OutcomeTracker":
+async def get_outcome_tracker() -> OutcomeTracker:
     """Get the outcome tracker for execution feedback."""
-    _ensure_init_started()
-    await _wait_for_stores()
+    await _ensure_stores_loaded()
     assert _outcome_tracker is not None
     return _outcome_tracker
 
 
-def _compute_health_status(metadata: "ComponentMetadata") -> HealthStatus:
+def _compute_health_status(metadata: ComponentMetadata) -> HealthStatus:
     """Compute health status from component git signals (HLTH-01)."""
-    from datetime import UTC, datetime, timedelta
-
     # Determine status based on last_updated
     status = "unknown"
     last_updated_str = None
@@ -372,7 +323,6 @@ def _compute_health_status(metadata: "ComponentMetadata") -> HealthStatus:
 @mcp.tool
 async def search_components(input: SearchInput) -> SearchResult:
     """Search components by task."""
-    from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
     pipeline = await get_pipeline()
     graph_store = await get_graph_store()
     metadata_store = await get_metadata_store()
@@ -381,8 +331,6 @@ async def search_components(input: SearchInput) -> SearchResult:
     # Convert component_type string to enum if provided
     component_type = None
     if input.component_type:
-        from skill_retriever.entities.components import ComponentType
-
         try:
             component_type = ComponentType(input.component_type)
         except ValueError:
@@ -458,7 +406,6 @@ async def search_components(input: SearchInput) -> SearchResult:
 @mcp.tool
 async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
     """Get full component info."""
-    from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
     graph_store = await get_graph_store()
 
     node = graph_store.get_node(input.component_id)
@@ -476,8 +423,6 @@ async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
 
     # Get dependencies from edges
     edges = graph_store.get_edges(input.component_id)
-    from skill_retriever.entities.graph import EdgeType
-
     dependencies = [
         edge.target_id
         for edge in edges
@@ -504,9 +449,6 @@ async def get_component_detail(input: ComponentDetailInput) -> ComponentDetail:
 @mcp.tool
 async def install_components(input: InstallInput) -> InstallResult:
     """Install components to .claude/."""
-    from skill_retriever.mcp.installer import ComponentInstaller
-    from skill_retriever.memory.outcome_tracker import OutcomeType
-
     graph_store = await get_graph_store()
     metadata_store = await get_metadata_store()
     component_memory = await get_component_memory()
@@ -561,11 +503,6 @@ async def check_dependencies(input: DependencyCheckInput) -> DependencyCheckResu
     """Check deps and conflicts."""
     graph_store = await get_graph_store()
 
-    from skill_retriever.workflows.dependency_resolver import (
-        detect_conflicts,
-        resolve_transitive_dependencies,
-    )
-
     # Resolve transitive dependencies
     all_ids, deps_added = resolve_transitive_dependencies(
         input.component_ids, graph_store
@@ -619,10 +556,6 @@ def _parse_github_url(url: str) -> tuple[str, str]:
 @mcp.tool
 async def ingest_repo(input: IngestInput) -> IngestResult:
     """Index a component repository."""
-    from git import Repo
-    from skill_retriever.entities.components import ComponentMetadata
-    from skill_retriever.memory.ingestion_cache import IngestionCache
-
     graph_store = await get_graph_store()
     vector_store = await get_vector_store()
     metadata_store = await get_metadata_store()
@@ -665,8 +598,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             )
 
         # Run crawler
-        from skill_retriever.nodes.ingestion.crawler import RepositoryCrawler
-
         crawler = RepositoryCrawler(owner, name, repo_path)
         components = crawler.crawl()
 
@@ -679,8 +610,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             )
 
         # Deduplicate components using entity resolution
-        from skill_retriever.nodes.ingestion.resolver import EntityResolver
-
         raw_count = len(components)
         resolver = EntityResolver(fuzzy_threshold=80.0, embedding_threshold=0.85)
         components = resolver.resolve(components)
@@ -689,8 +618,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             logger.info("Entity resolution removed %d duplicates", dedup_count)
 
         # Security scan all components (SEC-01)
-        from skill_retriever.security import SecurityScanner
-
         scanner = SecurityScanner()
         scanned_components: list[ComponentMetadata] = []
         for comp in components:
@@ -726,8 +653,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         logger.info("Security scanned %d components", len(components))
 
         # Add to graph store
-        from skill_retriever.entities.graph import GraphEdge, GraphNode
-
         for comp in components:
             try:
                 # Incremental ingestion: skip unchanged components (SYNC-03)
@@ -748,8 +673,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 graph_store.add_node(node)
 
                 # Add dependency edges
-                from skill_retriever.entities.graph import EdgeType
-
                 for dep_id in comp.dependencies:
                     edge = GraphEdge(
                         source_id=comp.id,
@@ -759,10 +682,6 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                     graph_store.add_edge(edge)
 
                 # Generate and add embedding
-                from skill_retriever.nodes.retrieval.vector_search import (
-                    _get_embedding_model,  # pyright: ignore[reportPrivateUsage]
-                )
-
                 model = _get_embedding_model()
                 text = f"{comp.name} {comp.description}"
                 embeddings = list(model.embed([text]))  # pyright: ignore[reportUnknownMemberType, reportUnknownVariableType]
@@ -805,10 +724,10 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
 _sync_init_lock = asyncio.Lock()
 
 # Lightweight registry access (no store dependency)
-_registry_instance: "RepoRegistry | None" = None
+_registry_instance: RepoRegistry | None = None
 
 
-def _get_registry_direct() -> "RepoRegistry":
+def _get_registry_direct() -> RepoRegistry:
     """Get the repo registry without requiring full store initialization.
 
     This allows read-only sync tools (list_tracked_repos, sync_status)
@@ -816,20 +735,16 @@ def _get_registry_direct() -> "RepoRegistry":
     """
     global _registry_instance
     if _registry_instance is None:
-        from skill_retriever.sync.registry import RepoRegistry
         _registry_instance = RepoRegistry()
     return _registry_instance
 
 
-async def get_sync_manager() -> "SyncManager":
+async def get_sync_manager() -> SyncManager:
     """Get or initialize the sync manager."""
     global _sync_manager, _registry_instance
 
     async with _sync_init_lock:
         if _sync_manager is None:
-            from skill_retriever.sync.config import SYNC_CONFIG
-            from skill_retriever.sync.manager import SyncManager
-
             graph_store = await get_graph_store()
             vector_store = await get_vector_store()
             metadata_store = await get_metadata_store()
@@ -918,8 +833,6 @@ async def list_tracked_repos() -> ListTrackedReposResult:
 @mcp.tool
 async def sync_status() -> SyncStatusResult:
     """Get sync system status."""
-    from skill_retriever.sync.config import SYNC_CONFIG
-
     # Use direct registry for repo count (no store dependency)
     registry = _get_registry_direct()
     repos = registry.list_all()
@@ -975,8 +888,6 @@ async def poll_repos_now() -> str:
 @mcp.tool
 async def run_discovery_pipeline(input: RunPipelineInput) -> PipelineRunResult:
     """Run the discovery and ingestion pipeline."""
-    from skill_retriever.sync.pipeline import DiscoveryPipeline
-
     pipeline = DiscoveryPipeline(
         min_score=input.min_score,
         max_new_repos=input.max_new_repos,
@@ -999,9 +910,6 @@ async def run_discovery_pipeline(input: RunPipelineInput) -> PipelineRunResult:
 @mcp.tool
 async def discover_repos() -> DiscoverReposResult:
     """Discover skill repositories from GitHub."""
-    from skill_retriever.sync.oss_scout import OSSScout
-    from skill_retriever.sync.registry import RepoRegistry
-
     scout = OSSScout()
     discovered = scout.discover(force_refresh=True)
 
@@ -1033,8 +941,6 @@ async def discover_repos() -> DiscoverReposResult:
 @mcp.tool
 async def get_heal_status() -> HealStatusResult:
     """Get auto-heal status and failures."""
-    from skill_retriever.sync.auto_heal import AutoHealer
-
     healer = AutoHealer()
     status = healer.get_status()
     healable = healer.get_healable_failures()
@@ -1063,9 +969,6 @@ async def get_heal_status() -> HealStatusResult:
 @mcp.tool
 async def get_pipeline_status() -> PipelineStatusResult:
     """Get discovery pipeline status."""
-    from skill_retriever.sync.auto_heal import AutoHealer
-    from skill_retriever.sync.pipeline import DiscoveryPipeline
-
     pipeline = DiscoveryPipeline()
     status = pipeline.get_status()
 
@@ -1102,8 +1005,6 @@ async def get_pipeline_status() -> PipelineStatusResult:
 @mcp.tool
 async def clear_heal_failures() -> str:
     """Clear all tracked failures from auto-heal."""
-    from skill_retriever.sync.auto_heal import AutoHealer
-
     healer = AutoHealer()
     count = len(healer.state.failures)
     healer.state.failures.clear()
@@ -1122,8 +1023,6 @@ async def clear_heal_failures() -> str:
 @mcp.tool
 async def report_outcome(input: ReportOutcomeInput) -> str:
     """Report a component outcome (used, removed, deprecated)."""
-    from skill_retriever.memory.outcome_tracker import OutcomeType
-
     outcome_tracker = await get_outcome_tracker()
 
     # Map string to OutcomeType
@@ -1194,8 +1093,6 @@ async def get_outcome_report() -> OutcomeReportResult:
 @mcp.tool
 async def analyze_feedback() -> FeedbackStatusResult:
     """Analyze usage patterns and generate edge suggestions."""
-    from skill_retriever.memory.feedback_engine import FeedbackEngine
-
     component_memory = await get_component_memory()
     outcome_tracker = await get_outcome_tracker()
 
@@ -1214,8 +1111,6 @@ async def analyze_feedback() -> FeedbackStatusResult:
 @mcp.tool
 async def get_feedback_suggestions() -> list[EdgeSuggestionResult]:
     """Get pending edge suggestions from feedback analysis."""
-    from skill_retriever.memory.feedback_engine import FeedbackEngine
-
     engine = FeedbackEngine()
     suggestions = engine.get_pending_suggestions()
 
@@ -1235,8 +1130,6 @@ async def get_feedback_suggestions() -> list[EdgeSuggestionResult]:
 @mcp.tool
 async def review_suggestion(input: ReviewSuggestionInput) -> str:
     """Review a pending edge suggestion (accept or reject)."""
-    from skill_retriever.memory.feedback_engine import FeedbackEngine, SuggestionType
-
     engine = FeedbackEngine()
 
     # Map string to enum
@@ -1267,8 +1160,6 @@ async def review_suggestion(input: ReviewSuggestionInput) -> str:
 @mcp.tool
 async def apply_feedback_suggestions() -> str:
     """Apply all accepted suggestions to the graph."""
-    from skill_retriever.memory.feedback_engine import FeedbackEngine
-
     graph_store = await get_graph_store()
     engine = FeedbackEngine()
 
@@ -1289,8 +1180,6 @@ async def apply_feedback_suggestions() -> str:
 @mcp.tool
 async def security_scan(input: SecurityScanInput) -> SecurityScanResult:
     """Scan a component for security vulnerabilities."""
-    from skill_retriever.security import SecurityScanner
-
     metadata_store = await get_metadata_store()
     component = metadata_store.get(input.component_id)
 
@@ -1334,8 +1223,6 @@ async def security_scan(input: SecurityScanInput) -> SecurityScanResult:
 @mcp.tool
 async def security_audit(input: SecurityAuditInput) -> SecurityAuditResult:
     """Audit all indexed components for security vulnerabilities."""
-    from skill_retriever.security import RiskLevel
-
     metadata_store = await get_metadata_store()
 
     # Map threshold string to enum
@@ -1404,9 +1291,6 @@ async def backfill_security_scans(input: BackfillSecurityInput) -> BackfillSecur
     Scans all components in the metadata store that don't have security data,
     or all components if force_rescan=True.
     """
-    from skill_retriever.entities.components import ComponentMetadata
-    from skill_retriever.security import SecurityScanner
-
     metadata_store = await get_metadata_store()
     scanner = SecurityScanner()
 
@@ -1505,8 +1389,6 @@ async def security_scan_llm(input: LLMSecurityScanInput) -> LLMSecurityScanResul
 
     Requires ANTHROPIC_API_KEY environment variable.
     """
-    from skill_retriever.security import LLMSecurityAnalyzer, SecurityScanner
-
     metadata_store = await get_metadata_store()
     component = metadata_store.get(input.component_id)
 
