@@ -86,7 +86,7 @@ class NetworkXGraphStore:
         data: dict[str, Any] = dict(self._graph.nodes[node_id])
 
         # Stub nodes (auto-created by add_edge) lack required attributes
-        if "component_type" not in data or "label" not in data:
+        if "component_type" not in data or "label" not in data or not data["component_type"]:
             return None
 
         return _GraphNode(
