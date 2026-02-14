@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 # ---------------------------------------------------------------------------
 # Input models (keep descriptions under 10 words)
@@ -15,6 +15,13 @@ class SearchInput(BaseModel):
     query: str = Field(description="Task description")
     top_k: int = Field(default=5, description="Max results")
     component_type: str | None = Field(default=None, description="Filter by type")
+
+    @field_validator("component_type", mode="before")
+    @classmethod
+    def _coerce_empty_to_none(cls, v: str | None) -> str | None:
+        if v is None or v == "":
+            return None
+        return v
 
 
 class ComponentDetailInput(BaseModel):

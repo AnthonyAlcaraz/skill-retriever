@@ -6,30 +6,33 @@ Given a task description, returns the minimal correct set of components (agents,
 
 ## Current Index
 
-**1,189 components** from 25 repositories, auto-discovered and synced hourly.
+**1,627 components** from 34 repositories, auto-discovered and synced hourly.
 
 | Type | Count | Description |
 |------|-------|-------------|
-| **Skills** | 675 | Portable instruction sets that package domain expertise and procedural knowledge |
-| **Agents** | 431 | Specialized AI personas with isolated context and fine-grained permissions |
+| **Skills** | 1,045 | Portable instruction sets that package domain expertise and procedural knowledge |
+| **Agents** | 475 | Specialized AI personas with isolated context and fine-grained permissions |
+| **Hooks** | 37 | Event handlers (SessionStart, PreCompact, etc.) |
 | **Commands** | 36 | Slash commands (`/commit`, `/review`, etc.) |
-| **Hooks** | 23 | Event handlers (SessionStart, PreCompact, etc.) |
-| **MCPs** | 21 | Model Context Protocol servers for external integrations |
+| **MCPs** | 31 | Model Context Protocol servers for external integrations |
 | **Settings** | 3 | Configuration presets |
 
 ### Top Repositories
 
 | Repository | Components | Description |
 |------------|------------|-------------|
-| [wshobson/agents](https://github.com/wshobson/agents) | 221 | Multi-agent orchestration with 129 skills |
-| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | 172 | 200+ curated skills compatible with Codex, Gemini CLI |
-| [davepoon/buildwithclaude](https://github.com/davepoon/buildwithclaude) | 152 | Full-stack development skills |
+| [VoltAgent/awesome-agent-skills](https://github.com/VoltAgent/awesome-agent-skills) | 232 | 200+ curated skills compatible with Codex, Gemini CLI |
+| [wshobson/agents](https://github.com/wshobson/agents) | 226 | Multi-agent orchestration with 129 skills |
+| [davepoon/buildwithclaude](https://github.com/davepoon/buildwithclaude) | 158 | Full-stack development skills |
+| [hesreallyhim/awesome-claude-code](https://github.com/hesreallyhim/awesome-claude-code) | 155 | Comprehensive Claude Code skills collection |
+| [K-Dense-AI/claude-scientific-skills](https://github.com/K-Dense-AI/claude-scientific-skills) | 123 | Scientific computing and research skills |
+| [zhayujie/chatgpt-on-wechat](https://github.com/zhayujie/chatgpt-on-wechat) | 113 | WeChat bot with multi-platform agent skills |
 | [ComposioHQ/awesome-claude-skills](https://github.com/ComposioHQ/awesome-claude-skills) | 85 | Automation skills with Rube MCP integration (Gmail, Slack, Calendar) |
 | [Orchestra-Research/AI-Research-SKILLs](https://github.com/Orchestra-Research/AI-Research-SKILLs) | 80 | AI research skills (fine-tuning, interpretability, distributed training, MLOps) |
+| [assafelovic/gpt-researcher](https://github.com/assafelovic/gpt-researcher) | 78 | Deep research agent skills |
 | [BehiSecc/awesome-claude-skills](https://github.com/BehiSecc/awesome-claude-skills) | 61 | Document processing, security, scientific skills |
-| [ComposioHQ/awesome-claude-plugins](https://github.com/ComposioHQ/awesome-claude-plugins) | 26 | Claude Code plugins (commands, skills, agents, hooks) |
+| [jeffallan/claude-skills](https://github.com/jeffallan/claude-skills) | 56 | Community Claude skills collection |
 | [anthropics/skills](https://github.com/anthropics/skills) | 17 | Official Anthropic skills (Excel, PowerPoint, PDF, skill-creator) |
-| [obra/superpowers](https://github.com/obra/superpowers) | 13 | TDD, debugging, and software development methodology |
 
 ## What Problem Does This Solve?
 
@@ -450,15 +453,15 @@ Scans components for security vulnerabilities during ingestion and on-demand:
 
 **Key insight**: Security scanning catches 22%+ of potentially vulnerable patterns before they reach your codebase. The system flags data exfiltration, credential access, privilege escalation, and code obfuscation.
 
-**Current Index Statistics (1,189 components):**
+**Current Index Statistics (1,627 components):**
 | Risk Level | Count | % |
 |------------|-------|---|
-| Safe | 796 | ~67% |
-| Low | 2 | ~0.2% |
-| Medium | 19 | ~1.6% |
-| High | 8 | ~0.7% |
-| Critical | 202 | ~17% |
-| Unscanned | 162 | ~14% |
+| Safe | 796 | ~49% |
+| Low | 2 | ~0.1% |
+| Medium | 19 | ~1.2% |
+| High | 8 | ~0.5% |
+| Critical | 202 | ~12% |
+| Unscanned | 600 | ~37% |
 
 **Top Finding Patterns (in CRITICAL components):**
 | Pattern | Count | Notes |
@@ -799,7 +802,7 @@ Claude: [Calls backfill_security_scans(force_rescan=false)]
 | First search (cold) | ~7s (embedding model loads once) |
 | Subsequent searches | ~120ms (vector + graph + fusion) |
 | Cached searches | <0.1ms (LRU cache) |
-| Auto-sync interval | 1 hour (25 repos polled via GitHub API) |
+| Auto-sync interval | 1 hour (48 repos tracked, polled via GitHub API) |
 
 Startup optimization: `fastembed` (the embedding library) is lazy-loaded and pre-warmed in a background thread, so the MCP server responds to tool calls within ~1s instead of blocking for ~9s.
 
