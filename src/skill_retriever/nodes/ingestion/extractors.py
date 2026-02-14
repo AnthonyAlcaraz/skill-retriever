@@ -651,3 +651,303 @@ class AwesomeListStrategy:
             ))
 
         return components
+
+
+class PackageJsonStrategy:
+    """Strategy for npm/TypeScript repos with package.json.
+
+    Extracts one component per package.json found. Handles monorepos
+    by discovering packages/*/package.json and apps/*/package.json.
+    Infers ComponentType from package.json keywords and dependencies.
+    Uses README.md content as raw_content for richer embeddings.
+    """
+
+    def __init__(self, repo_owner: str, repo_name: str) -> None:
+        self.repo_owner = repo_owner
+        self.repo_name = repo_name
+
+    def can_handle(self, repo_root: Path) -> bool:
+        return (repo_root / "package.json").is_file()
+
+    def discover(self, repo_root: Path) -> list[Path]:
+        files: list[Path] = []
+        root_pkg = repo_root / "package.json"
+        if root_pkg.is_file():
+            files.append(root_pkg)
+        # Monorepo: packages/*/package.json
+        for subdir_name in ("packages", "apps"):
+            subdir = repo_root / subdir_name
+            if subdir.is_dir():
+                for child in subdir.iterdir():
+                    if child.is_dir():
+                        pkg = child / "package.json"
+                        if pkg.is_file():
+                            files.append(pkg)
+        return sorted(files)
+
+    def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
+        import json as _json
+
+        try:
+            data = _json.loads(file_path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+        name = data.get("name", "")
+        if not name:
+            name = file_path.parent.name
+        if not name:
+            return None
+
+        # Clean scoped package names: @scope/name -> name
+        if "/" in name:
+            name = name.split("/")[-1]
+
+        description = data.get("description", "")
+        keywords = data.get("keywords", [])
+        if isinstance(keywords, str):
+            keywords = [k.strip() for k in keywords.split(",") if k.strip()]
+
+        deps_dict = data.get("dependencies", {})
+        dev_deps_dict = data.get("devDependencies", {})
+        all_dep_names = sorted(set(list(deps_dict.keys()) + list(dev_deps_dict.keys())))
+
+        component_type = self._infer_type(keywords, all_dep_names, name, description)
+        tags = [k.lower() for k in keywords[:10]]
+
+        # Read README for raw_content (richer embeddings)
+        raw_content = ""
+        pkg_dir = file_path.parent
+        for readme_name in ("README.md", "readme.md", "README.MD", "Readme.md"):
+            readme_path = pkg_dir / readme_name
+            if readme_path.is_file():
+                try:
+                    raw_content = readme_path.read_text(encoding="utf-8")
+                except Exception:
+                    pass
+                break
+
+        # If no local README, try repo root (only for root package.json)
+        if not raw_content and file_path.parent == repo_root:
+            for readme_name in ("README.md", "readme.md"):
+                readme_path = repo_root / readme_name
+                if readme_path.is_file():
+                    try:
+                        raw_content = readme_path.read_text(encoding="utf-8")
+                    except Exception:
+                        pass
+                    break
+
+        if not raw_content:
+            raw_content = description
+
+        # Category: for monorepo sub-packages, use the parent dir path
+        category = ""
+        try:
+            rel = file_path.relative_to(repo_root)
+            parts = list(rel.parts[:-1])  # Remove "package.json"
+            if parts:
+                category = "/".join(parts)
+        except ValueError:
+            pass
+
+        component_id = ComponentMetadata.generate_id(
+            self.repo_owner, self.repo_name, component_type, name
+        )
+
+        return ComponentMetadata(
+            id=component_id,
+            name=name,
+            component_type=component_type,
+            description=description[:500],
+            tags=tags,
+            tools=[],
+            dependencies=all_dep_names[:20],
+            version=str(data.get("version", "")),
+            raw_content=raw_content,
+            source_repo=f"{self.repo_owner}/{self.repo_name}",
+            source_path=str(file_path.relative_to(repo_root)),
+            category=category,
+        )
+
+    @staticmethod
+    def _infer_type(
+        keywords: list[str],
+        dep_names: list[str],
+        name: str,
+        description: str,
+    ) -> ComponentType:
+        """Infer ComponentType from package.json signals."""
+        kw_lower = [k.lower() for k in keywords]
+        name_lower = name.lower()
+        desc_lower = description.lower()
+
+        # MCP detection (highest priority)
+        if "mcp" in kw_lower or "mcp-server" in kw_lower:
+            return ComponentType.MCP
+        if "mcp" in name_lower or "model-context-protocol" in desc_lower:
+            return ComponentType.MCP
+        if any("@modelcontextprotocol" in d for d in dep_names):
+            return ComponentType.MCP
+
+        # Agent detection
+        if "agent" in kw_lower or "autonomous" in kw_lower:
+            return ComponentType.AGENT
+        if "agent" in name_lower:
+            return ComponentType.AGENT
+
+        # Hook detection
+        if "hook" in kw_lower or "git-hook" in kw_lower:
+            return ComponentType.HOOK
+
+        # Command/CLI detection
+        if "cli" in kw_lower or "command" in kw_lower:
+            return ComponentType.COMMAND
+        if name_lower.endswith("-cli"):
+            return ComponentType.COMMAND
+
+        return ComponentType.SKILL
+
+
+class ReadmeFallbackStrategy:
+    """Catch-all strategy for repos where no other strategy produced components.
+
+    Parses README.md to extract a single component representing the repo.
+    Uses the first H1 as name and first paragraph as description.
+    MUST be the last strategy tried.
+    """
+
+    def __init__(self, repo_owner: str, repo_name: str) -> None:
+        self.repo_owner = repo_owner
+        self.repo_name = repo_name
+
+    def can_handle(self, repo_root: Path) -> bool:
+        for name in ("README.md", "readme.md", "README.MD", "Readme.md"):
+            if (repo_root / name).is_file():
+                return True
+        return False
+
+    def discover(self, repo_root: Path) -> list[Path]:
+        for name in ("README.md", "readme.md", "README.MD", "Readme.md"):
+            readme = repo_root / name
+            if readme.is_file():
+                return [readme]
+        return []
+
+    def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
+        import re as _re
+
+        try:
+            content = file_path.read_text(encoding="utf-8")
+        except Exception:
+            return None
+
+        if not content.strip():
+            return None
+
+        # Extract name from first H1 heading, fallback to repo name
+        name = self.repo_name
+        h1_match = _re.search(r'^#\s+(.+?)$', content, _re.MULTILINE)
+        if h1_match:
+            raw_name = h1_match.group(1).strip()
+            # Remove badges, images, links
+            raw_name = _re.sub(r'\[!\[.*?\]\(.*?\)\]\(.*?\)', '', raw_name)
+            raw_name = _re.sub(r'!\[.*?\]\(.*?\)', '', raw_name)
+            raw_name = _re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', raw_name)
+            raw_name = raw_name.strip()
+            if raw_name:
+                name = raw_name
+
+        # Extract description from first non-heading, non-empty paragraph
+        description = ""
+        paragraph_lines: list[str] = []
+        in_frontmatter = False
+        in_paragraph = False
+        for line in content.split("\n"):
+            stripped = line.strip()
+            # Skip YAML frontmatter
+            if stripped == "---":
+                in_frontmatter = not in_frontmatter
+                continue
+            if in_frontmatter:
+                continue
+            # Skip headings, badges
+            if stripped.startswith("#") or stripped.startswith("![") or stripped.startswith("[!["):
+                if in_paragraph:
+                    break
+                continue
+            if not stripped:
+                if in_paragraph:
+                    break
+                continue
+            in_paragraph = True
+            paragraph_lines.append(stripped)
+
+        if paragraph_lines:
+            description = " ".join(paragraph_lines)
+
+        if not description:
+            description = f"Component from {self.repo_owner}/{self.repo_name}"
+
+        component_type = self._infer_type(name, description, content)
+
+        component_id = ComponentMetadata.generate_id(
+            self.repo_owner, self.repo_name, component_type, name
+        )
+
+        return ComponentMetadata(
+            id=component_id,
+            name=name,
+            component_type=component_type,
+            description=description[:500],
+            tags=self._extract_tags(content),
+            tools=[],
+            dependencies=[],
+            version="",
+            raw_content=content,
+            source_repo=f"{self.repo_owner}/{self.repo_name}",
+            source_path=str(file_path.relative_to(repo_root)),
+            category="",
+        )
+
+    @staticmethod
+    def _infer_type(name: str, description: str, content: str) -> ComponentType:
+        """Infer ComponentType from README content signals."""
+        all_text = f"{name} {description}".lower()
+        content_sample = content[:2000].lower()
+
+        if "mcp" in all_text or "model context protocol" in content_sample:
+            return ComponentType.MCP
+        if "agent" in all_text or "autonomous" in all_text:
+            return ComponentType.AGENT
+        if "hook" in all_text or "git hook" in content_sample:
+            return ComponentType.HOOK
+        if "cli" in all_text or "command line" in all_text or "command-line" in all_text:
+            return ComponentType.COMMAND
+        return ComponentType.SKILL
+
+    @staticmethod
+    def _extract_tags(content: str) -> list[str]:
+        """Extract tags from README badges and H2 headings."""
+        import re as _re
+
+        tags: list[str] = []
+        _generic_headings = {
+            "installation", "usage", "license", "contributing",
+            "getting started", "table of contents", "requirements",
+            "setup", "development", "changelog", "credits", "authors",
+        }
+
+        # Extract from shields.io badge URLs
+        for badge in _re.findall(r'img\.shields\.io/badge/([^-]+)', content)[:5]:
+            tag = badge.lower().replace("%20", " ").strip()
+            if tag and tag not in tags:
+                tags.append(tag)
+
+        # Extract from H2 headings as topic indicators
+        for heading in _re.findall(r'^##\s+(.+?)$', content, _re.MULTILINE)[:5]:
+            tag = heading.strip().lower()
+            if tag not in _generic_headings and tag and tag not in tags:
+                tags.append(tag)
+
+        return tags[:10]

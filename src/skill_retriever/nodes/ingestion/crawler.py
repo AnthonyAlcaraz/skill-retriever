@@ -11,8 +11,10 @@ from skill_retriever.nodes.ingestion.extractors import (
     Davila7Strategy,
     FlatDirectoryStrategy,
     GenericMarkdownStrategy,
+    PackageJsonStrategy,
     PluginMarketplaceStrategy,
     PythonModuleStrategy,
+    ReadmeFallbackStrategy,
 )
 from skill_retriever.nodes.ingestion.git_signals import extract_git_signals
 
@@ -41,6 +43,8 @@ class RepositoryCrawler:
         # Special strategies that run independently
         self.python_strategy = PythonModuleStrategy(repo_owner, repo_name)
         self.awesome_list_strategy = AwesomeListStrategy(repo_owner, repo_name)
+        self.package_json_strategy = PackageJsonStrategy(repo_owner, repo_name)
+        self.readme_fallback_strategy = ReadmeFallbackStrategy(repo_owner, repo_name)
 
     def crawl(self) -> list[ComponentMetadata]:
         """Discover and extract all components from the repository."""
@@ -92,6 +96,33 @@ class RepositoryCrawler:
             awesome_components = self.awesome_list_strategy.extract_all(self.repo_path)
             logger.info("Extracted %d components from awesome list", len(awesome_components))
             components.extend(awesome_components)
+
+        # Extract package.json components (independent of markdown)
+        if self.package_json_strategy.can_handle(self.repo_path):
+            logger.info(
+                "Using PackageJsonStrategy for %s/%s",
+                self.repo_owner,
+                self.repo_name,
+            )
+            pkg_files = self.package_json_strategy.discover(self.repo_path)
+            logger.info("Discovered %d package.json files", len(pkg_files))
+            for file_path in pkg_files:
+                comp = self._extract_with_signals(self.package_json_strategy, file_path)
+                if comp:
+                    components.append(comp)
+
+        # Fallback: if still no components, try README-based extraction
+        if not components and self.readme_fallback_strategy.can_handle(self.repo_path):
+            logger.info(
+                "Using ReadmeFallbackStrategy (catch-all) for %s/%s",
+                self.repo_owner,
+                self.repo_name,
+            )
+            readme_files = self.readme_fallback_strategy.discover(self.repo_path)
+            for file_path in readme_files:
+                comp = self._extract_with_signals(self.readme_fallback_strategy, file_path)
+                if comp:
+                    components.append(comp)
 
         if not components:
             logger.warning("No components found for %s", self.repo_path)
