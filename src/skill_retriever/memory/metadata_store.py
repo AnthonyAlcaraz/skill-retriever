@@ -34,7 +34,7 @@ class MetadataStore:
         if self.store_path.exists():
             from skill_retriever.entities.components import ComponentMetadata
 
-            data = json.loads(self.store_path.read_text())
+            data = json.loads(self.store_path.read_text(encoding="utf-8"))
             for item in data:
                 meta = ComponentMetadata.model_validate(item)
                 self._cache[meta.id] = meta
@@ -43,7 +43,7 @@ class MetadataStore:
         """Persist all metadata to JSON file."""
         data = [m.model_dump(mode="json") for m in self._cache.values()]
         self.store_path.parent.mkdir(parents=True, exist_ok=True)
-        self.store_path.write_text(json.dumps(data, indent=2, default=str))
+        self.store_path.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
 
     def get(self, component_id: str) -> ComponentMetadata | None:
         """Get metadata by component ID.

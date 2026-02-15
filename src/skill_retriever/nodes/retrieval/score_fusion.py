@@ -93,8 +93,9 @@ def fuse_retrieval_results(
     component_memory: ComponentMemory | None = None,
     component_type: ComponentType | None = None,
     top_k: int = 10,
+    external_ranked: list[str] | None = None,
 ) -> list[RankedComponent]:
-    """Fuse vector and graph retrieval results using RRF with usage boosting.
+    """Fuse vector, graph, and external retrieval results using RRF with usage boosting.
 
     Type filter applied AFTER fusion (not during retrieval) per research.
     Usage-based boosting applied when component_memory is provided (LRNG-04).
@@ -106,6 +107,7 @@ def fuse_retrieval_results(
         component_memory: Optional component memory for usage-based boosting.
         component_type: Optional type filter.
         top_k: Maximum results to return.
+        external_ranked: Optional ranked list from external API (skills.sh).
 
     Returns:
         List of RankedComponent with fused and boosted scores.
@@ -119,11 +121,13 @@ def fuse_retrieval_results(
         for item_id, _ in sorted(graph_results.items(), key=lambda x: x[1], reverse=True)
     ]
 
-    # Handle empty graph results (vector-only fallback)
+    # Build list of ranked lists for RRF fusion
+    ranked_lists = [vector_ranked]
     if graph_ranked:
-        fused = reciprocal_rank_fusion([vector_ranked, graph_ranked])
-    else:
-        fused = reciprocal_rank_fusion([vector_ranked])
+        ranked_lists.append(graph_ranked)
+    if external_ranked:
+        ranked_lists.append(external_ranked)
+    fused = reciprocal_rank_fusion(ranked_lists)
 
     # Apply usage-based boosting (LRNG-04)
     fused = _apply_usage_boost(fused, component_memory)

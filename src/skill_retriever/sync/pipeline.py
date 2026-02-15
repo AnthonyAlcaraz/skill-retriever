@@ -349,7 +349,7 @@ class DiscoveryPipeline:
         history = []
         if history_path.exists():
             try:
-                with open(history_path) as f:
+                with open(history_path, encoding="utf-8") as f:
                     history = json.load(f)
             except Exception:
                 pass
@@ -367,7 +367,7 @@ class DiscoveryPipeline:
         })
 
         history_path.parent.mkdir(parents=True, exist_ok=True)
-        with open(history_path, "w") as f:
+        with open(history_path, "w", encoding="utf-8") as f:
             json.dump(history, f, indent=2)
 
     def get_status(self) -> dict:

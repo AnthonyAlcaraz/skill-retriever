@@ -18,6 +18,10 @@ from skill_retriever.nodes.retrieval.query_planner import (
     extract_query_entities,
     plan_retrieval,
 )
+from skill_retriever.nodes.retrieval.external_search import (
+    external_results_to_ranked,
+    search_skillsh,
+)
 from skill_retriever.nodes.retrieval.score_fusion import fuse_retrieval_results
 from skill_retriever.nodes.retrieval.vector_search import search_with_type_filter
 from skill_retriever.workflows.dependency_resolver import (
@@ -129,6 +133,19 @@ class RetrievalPipeline:
             top_k=plan.max_results,
         )
 
+        # Stage 2.5: External API search (skills.sh) - non-blocking
+        external_ranked: list[str] | None = None
+        external_skill_map: dict[str, object] = {}
+        try:
+            external_skills = search_skillsh(query, limit=20)
+            if external_skills:
+                all_node_ids = self._graph_store.get_all_node_ids()
+                external_ranked, external_skill_map = external_results_to_ranked(
+                    external_skills, all_node_ids
+                )
+        except Exception:
+            pass  # External search failure never blocks local results
+
         # Early exit optimization: skip graph if not needed and high confidence
         skip_graph = (
             not plan.use_ppr
@@ -169,6 +186,7 @@ class RetrievalPipeline:
             component_memory=self._component_memory,
             component_type=component_type,
             top_k=top_k,
+            external_ranked=external_ranked,
         )
 
         # Stage 5a: Resolve transitive dependencies BEFORE context assembly

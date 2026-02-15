@@ -96,6 +96,26 @@ class SearchResult(BaseModel):
     suggested_types: list[str] = Field(default_factory=list, description="Suggested component types")
 
 
+class ExternalSkillResult(BaseModel):
+    """A skill from the skills.sh external directory."""
+
+    name: str
+    description: str
+    owner: str
+    repo: str
+    installs: int = Field(default=0, description="Install count")
+    url: str
+    install_cmd: str = Field(description="npx install command")
+
+
+class ExternalSearchResult(BaseModel):
+    """Result of external skills.sh search."""
+
+    source: str = Field(default="skills.sh", description="API source")
+    count: int
+    skills: list[ExternalSkillResult]
+
+
 class ComponentDetail(BaseModel):
     """Full component information."""
 

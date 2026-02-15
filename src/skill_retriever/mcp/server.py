@@ -57,6 +57,8 @@ from skill_retriever.mcp.schemas import (
     DiscoveredRepo,
     DiscoverReposResult,
     EdgeSuggestionResult,
+    ExternalSearchResult,
+    ExternalSkillResult,
     FailedRepo,
     FeedbackStatusResult,
     HealStatusResult,
@@ -400,6 +402,30 @@ async def search_components(input: SearchInput) -> SearchResult:
         # RETR-06: Abstraction level awareness
         abstraction_level=result.abstraction_level,
         suggested_types=result.suggested_types or [],
+    )
+
+
+@mcp.tool
+async def search_external(input: SearchInput) -> ExternalSearchResult:
+    """Search skills.sh directory for skills not in local index."""
+    from skill_retriever.nodes.retrieval.external_search import search_skillsh
+
+    skills = search_skillsh(input.query, limit=input.top_k)
+    return ExternalSearchResult(
+        source="skills.sh",
+        count=len(skills),
+        skills=[
+            ExternalSkillResult(
+                name=s.name,
+                description=s.description,
+                owner=s.owner,
+                repo=s.repo,
+                installs=s.install_count,
+                url=s.url,
+                install_cmd=f"npx skills add {s.owner}/{s.repo}",
+            )
+            for s in skills
+        ],
     )
 
 

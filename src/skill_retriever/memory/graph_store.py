@@ -47,6 +47,8 @@ class GraphStore(Protocol):
 
     def get_depends_on_subgraph(self) -> nx.DiGraph[str]: ...
 
+    def get_all_node_ids(self) -> set[str]: ...
+
 
 class NetworkXGraphStore:
     """NetworkX-backed directed graph store with Personalized PageRank support."""
@@ -239,3 +241,7 @@ class NetworkXGraphStore:
             if data.get("edge_type") == str(EdgeType.DEPENDS_ON)
         ]
         return nx.DiGraph(depends_on_edges)
+
+    def get_all_node_ids(self) -> set[str]:
+        """Return the set of all node IDs in the graph."""
+        return set(self._graph.nodes)

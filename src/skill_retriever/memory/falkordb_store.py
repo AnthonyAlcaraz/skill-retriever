@@ -447,6 +447,10 @@ class FalkorDBGraphStore:
         ]
         return nx.DiGraph(depends_on_edges)
 
+    def get_all_node_ids(self) -> set[str]:
+        """Return the set of all node IDs in the graph."""
+        return set(self._graph.nodes)
+
     # ------------------------------------------------------------------
     # Index creation (for FalkorDB)
     # ------------------------------------------------------------------

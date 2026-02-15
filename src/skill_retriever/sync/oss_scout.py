@@ -105,7 +105,7 @@ class OSSScout:
             try:
                 import yaml
 
-                with open(gh_config) as f:
+                with open(gh_config, encoding="utf-8") as f:
                     config = yaml.safe_load(f)
                     if config and "github.com" in config:
                         return config["github.com"].get("oauth_token")
@@ -115,7 +115,7 @@ class OSSScout:
         # Try token file
         token_file = Path.home() / ".config" / "github-token.txt"
         if token_file.exists():
-            return token_file.read_text().strip()
+            return token_file.read_text(encoding="utf-8").strip()
 
         return None
 
@@ -123,7 +123,7 @@ class OSSScout:
         """Load discovered repos from cache."""
         if self.cache_path.exists():
             try:
-                with open(self.cache_path) as f:
+                with open(self.cache_path, encoding="utf-8") as f:
                     data = json.load(f)
                 for repo_data in data.get("repos", []):
                     repo = DiscoveredRepo(
@@ -160,7 +160,7 @@ class OSSScout:
                 for repo in self._discovered.values()
             ],
         }
-        with open(self.cache_path, "w") as f:
+        with open(self.cache_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
         logger.info("Saved %d repos to scout cache", len(self._discovered))
 
@@ -315,7 +315,7 @@ class OSSScout:
         if not should_search and self.cache_path.exists():
             # Check cache age
             try:
-                with open(self.cache_path) as f:
+                with open(self.cache_path, encoding="utf-8") as f:
                     data = json.load(f)
                     last_scan = datetime.fromisoformat(data.get("last_scan", "2000-01-01"))
                     # Refresh if older than 24 hours

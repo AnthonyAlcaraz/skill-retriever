@@ -82,7 +82,7 @@ class AutoHealer:
         """Load healing state from disk."""
         if self.state_path.exists():
             try:
-                with open(self.state_path) as f:
+                with open(self.state_path, encoding="utf-8") as f:
                     data = json.load(f)
 
                 self.state.total_healed = data.get("total_healed", 0)
@@ -139,7 +139,7 @@ class AutoHealer:
             ],
         }
 
-        with open(self.state_path, "w") as f:
+        with open(self.state_path, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
     def record_failure(

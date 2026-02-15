@@ -101,7 +101,7 @@ def merge_settings(
 
     existing: dict[str, Any] = {}
     if Path(existing_path).exists():
-        existing = json.loads(Path(existing_path).read_text())
+        existing = json.loads(Path(existing_path).read_text(encoding="utf-8"))
 
     return deep_merge(existing, new_settings)
 
@@ -149,10 +149,10 @@ def install_component(
         except json.JSONDecodeError:
             new_settings = {}
         merged = merge_settings(dest_path, new_settings)
-        dest_path.write_text(json.dumps(merged, indent=2))
+        dest_path.write_text(json.dumps(merged, indent=2), encoding="utf-8")
     else:
         # Write raw content for all other types
-        dest_path.write_text(component.raw_content)
+        dest_path.write_text(component.raw_content, encoding="utf-8")
 
     return dest_path, token_cost
 
