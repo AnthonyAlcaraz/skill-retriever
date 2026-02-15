@@ -26,6 +26,18 @@ COMPONENT_TYPE_DIRS: dict[str, ComponentType] = {
 
 _EXCLUDED_DIRS = {".git", ".github", "node_modules", "__pycache__"}
 
+# Markdown file patterns to match (supports .md and .md.txt extensions)
+_MD_GLOBS = ("*.md", "*.md.txt")
+
+
+def _glob_markdown(directory: Path, *, recursive: bool = False) -> list[Path]:
+    """Glob for markdown files matching all supported extensions."""
+    files: list[Path] = []
+    glob_fn = directory.rglob if recursive else directory.glob
+    for pattern in _MD_GLOBS:
+        files.extend(glob_fn(pattern))
+    return files
+
 
 @runtime_checkable
 class ExtractionStrategy(Protocol):
@@ -63,7 +75,7 @@ class Davila7Strategy:
         for type_dir_name in COMPONENT_TYPE_DIRS:
             type_dir = components_dir / type_dir_name
             if type_dir.is_dir():
-                files.extend(type_dir.rglob("*.md"))
+                files.extend(_glob_markdown(type_dir, recursive=True))
         return sorted(files)
 
     def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
@@ -136,7 +148,7 @@ class FlatDirectoryStrategy:
         for type_dir_name in COMPONENT_TYPE_DIRS:
             type_dir = claude_dir / type_dir_name
             if type_dir.is_dir():
-                files.extend(type_dir.glob("*.md"))
+                files.extend(_glob_markdown(type_dir))
         return sorted(files)
 
     def extract(self, file_path: Path, repo_root: Path) -> ComponentMetadata | None:
@@ -194,7 +206,7 @@ class GenericMarkdownStrategy:
 
     def discover(self, repo_root: Path) -> list[Path]:
         files: list[Path] = []
-        for md_file in repo_root.rglob("*.md"):
+        for md_file in _glob_markdown(repo_root, recursive=True):
             # Skip excluded directories
             if any(part in _EXCLUDED_DIRS for part in md_file.parts):
                 continue
@@ -483,7 +495,7 @@ class PluginMarketplaceStrategy:
                             files.append(agent_md)
                         else:
                             # Look for any markdown file with name frontmatter
-                            for md_file in agent_dir.glob("*.md"):
+                            for md_file in _glob_markdown(agent_dir):
                                 raw_meta, _ = parse_component_file(md_file)
                                 if raw_meta.get("name"):
                                     files.append(md_file)
