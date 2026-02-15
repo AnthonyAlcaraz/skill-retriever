@@ -2,7 +2,7 @@
 
 **MCP server providing component recommendations for Claude Code tasks.**
 
-When working on coding tasks, this system can suggest relevant skills, agents, commands, hooks, and MCPs from a curated index of 1,000+ components across 23 repositories.
+When working on coding tasks, this system can suggest relevant skills, agents, commands, hooks, and MCPs from a curated index of 2,500+ components across 56 repositories.
 
 ## When to Query Skill Retriever
 
@@ -207,6 +207,20 @@ ingest_repo(repo_url="https://github.com/owner/repo")
 | `NO_COMPONENTS` | Repo has no recognizable components | Expected, skip |
 | `RATE_LIMITED` | GitHub API limit | Wait, retry later |
 | `PARSE_ERROR` | Malformed component file | Report issue |
+
+### Supported File Extensions
+
+The ingestion pipeline recognizes these component file formats:
+
+| Pattern | Strategy |
+|---------|----------|
+| `*.md` | All markdown strategies (Davila7, Flat, Generic, Plugin) |
+| `*.md.txt` | All markdown strategies (added for repos like honnibal/claude-skills) |
+| `*.py` | PythonModuleStrategy (docstring-bearing modules) |
+| `package.json` | PackageJsonStrategy (npm packages) |
+| `README.md` | ReadmeFallbackStrategy (catch-all) |
+
+Markdown files must have YAML frontmatter with a `name` field to be indexed.
 
 ### Search Returns Empty
 
