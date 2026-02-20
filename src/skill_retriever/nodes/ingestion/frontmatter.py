@@ -35,14 +35,50 @@ def parse_component_file(file_path: Path) -> tuple[dict[str, Any], str]:
     return dict(post.metadata), post.content
 
 
+def _flatten_to_str_list(value: Any) -> list[str]:
+    """Flatten a value of unknown type into a flat list of strings.
+
+    Handles: None, str (comma-split), list (recurse), dict (flatten keys+values),
+    and other scalars (str-cast).
+    """
+    if value is None:
+        return []
+    if isinstance(value, str):
+        return [s.strip() for s in value.split(",") if s.strip()]
+    if isinstance(value, dict):
+        items: list[str] = []
+        for k, v in value.items():
+            if isinstance(v, list):
+                items.extend(str(i) for i in v)
+            elif isinstance(v, str):
+                items.append(v)
+            elif v is not None:
+                items.append(str(v))
+            # Also include the key as context (e.g. "mcp" from {mcp: ['rube']})
+            items.append(str(k))
+        return [s.strip() for s in items if s.strip()]
+    if isinstance(value, list):
+        flat: list[str] = []
+        for item in value:
+            if isinstance(item, str):
+                flat.append(item.strip())
+            elif isinstance(item, dict):
+                flat.extend(_flatten_to_str_list(item))
+            elif item is not None:
+                flat.append(str(item))
+        return [s for s in flat if s]
+    return [str(value)]
+
+
 def normalize_frontmatter(raw: dict[str, Any]) -> dict[str, Any]:
     """Normalize raw frontmatter into a consistent schema.
 
     - Maps ``allowed-tools`` and ``allowed_tools`` to ``tools``.
     - Maps ``requires``, ``depends``, ``depends-on``, ``depends_on`` to ``dependencies``.
     - Ensures ``tags`` is always a list (splits on commas if string).
-    - Ensures ``tools`` is always a list.
-    - Ensures ``dependencies`` is always a list.
+    - Ensures ``tools`` is always a list of strings.
+    - Ensures ``dependencies`` is always a list of strings.
+    - Handles dict values like ``{mcp: ['rube']}`` by flattening to ``['rube', 'mcp']``.
     - Strips whitespace from ``name`` and ``description``.
     """
     result = dict(raw)
@@ -57,26 +93,14 @@ def normalize_frontmatter(raw: dict[str, Any]) -> dict[str, Any]:
         if key in result:
             result.setdefault("dependencies", result.pop(key))
 
-    # Ensure tools is a list
-    tools = result.get("tools")
-    if tools is None:
-        result["tools"] = []
-    elif isinstance(tools, str):
-        result["tools"] = [t.strip() for t in tools.split(",") if t.strip()]
+    # Ensure tools is a flat list of strings
+    result["tools"] = _flatten_to_str_list(result.get("tools"))
 
-    # Ensure tags is a list
-    tags = result.get("tags")
-    if tags is None:
-        result["tags"] = []
-    elif isinstance(tags, str):
-        result["tags"] = [t.strip() for t in tags.split(",") if t.strip()]
+    # Ensure tags is a flat list of strings
+    result["tags"] = _flatten_to_str_list(result.get("tags"))
 
-    # Ensure dependencies is a list
-    deps = result.get("dependencies")
-    if deps is None:
-        result["dependencies"] = []
-    elif isinstance(deps, str):
-        result["dependencies"] = [d.strip() for d in deps.split(",") if d.strip()]
+    # Ensure dependencies is a flat list of strings
+    result["dependencies"] = _flatten_to_str_list(result.get("dependencies"))
 
     # Strip whitespace from name and description
     if "name" in result and isinstance(result["name"], str):
