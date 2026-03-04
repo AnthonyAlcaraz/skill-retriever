@@ -268,7 +268,7 @@ class DiscoveryPipeline:
             git_repo = None
 
             try:
-                git_repo = Repo.clone_from(repo.url, repo_path)
+                git_repo = Repo.clone_from(repo.url, repo_path, depth=1)
             except Exception as e:
                 return {"error": f"Clone failed: {e}", "indexed": 0}
 

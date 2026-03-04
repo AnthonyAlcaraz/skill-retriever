@@ -127,7 +127,7 @@ class SyncManager:
 
             # Clone
             logger.info("Cloning %s to %s", url, repo_path)
-            Repo.clone_from(url, repo_path)
+            Repo.clone_from(url, repo_path, depth=1)
 
             # Crawl
             crawler = RepositoryCrawler(owner, name, repo_path)
