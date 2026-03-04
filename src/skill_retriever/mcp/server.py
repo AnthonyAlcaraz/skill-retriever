@@ -26,8 +26,11 @@ from skill_retriever.memory.ingestion_cache import IngestionCache
 from skill_retriever.memory.metadata_store import MetadataStore as MetaStore
 from skill_retriever.memory.outcome_tracker import OutcomeTracker, OutcomeType
 from skill_retriever.memory.vector_store import FAISSVectorStore as VectorStore
+from skill_retriever.memory.gap_tracker import GapTracker
 from skill_retriever.nodes.ingestion.crawler import RepositoryCrawler
+from skill_retriever.nodes.ingestion.graph_enrichment import enrich_graph_edges
 from skill_retriever.nodes.ingestion.resolver import EntityResolver
+from skill_retriever.nodes.ingestion.validation_gate import validate_component
 from skill_retriever.nodes.retrieval.context_assembler import estimate_tokens
 from skill_retriever.nodes.retrieval.vector_search import (
     _get_embedding_model,  # pyright: ignore[reportPrivateUsage]
@@ -115,6 +118,7 @@ _vector_store: VectorStore | None = None
 _metadata_store: MetaStore | None = None
 _component_memory: ComponentMemory | None = None
 _outcome_tracker: OutcomeTracker | None = None
+_gap_tracker: GapTracker | None = None
 _sync_manager: SyncManager | None = None
 _auto_sync_started = False
 
@@ -173,7 +177,7 @@ def _try_falkordb_store() -> "FalkorDBGraphStore | None":
 def _load_stores_sync() -> None:
     """Load all stores synchronously."""
     global _pipeline, _graph_store, _vector_store, _metadata_store
-    global _component_memory, _outcome_tracker
+    global _component_memory, _outcome_tracker, _gap_tracker
 
     # Try FalkorDB first, fallback to NetworkX
     gs = _try_falkordb_store()
@@ -198,16 +202,25 @@ def _load_stores_sync() -> None:
     ot = OutcomeTracker.load(str(_OUTCOME_TRACKER_PATH))
     logger.info("Loaded outcome tracker: %d components tracked", len(ot.outcomes))
 
-    pipeline = RetrievalPipeline(gs, vs, component_memory=cm)
+    gt = GapTracker(_STORAGE_DIR)
 
     ms = MetaStore(_METADATA_PATH)
     logger.info("Loaded metadata store: %d components", len(ms))
+
+    pipeline = RetrievalPipeline(
+        gs, vs,
+        component_memory=cm,
+        gap_tracker=gt,
+        outcome_tracker=ot,
+        metadata_store=ms,
+    )
 
     # Assign to globals
     _graph_store = gs
     _vector_store = vs
     _component_memory = cm
     _outcome_tracker = ot
+    _gap_tracker = gt
     _metadata_store = ms
     _pipeline = pipeline
 
@@ -614,7 +627,7 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         git_repo: Repo | None = None
         try:
             logger.info("Cloning %s/%s to %s", owner, name, repo_path)
-            git_repo = Repo.clone_from(input.repo_url, repo_path)
+            git_repo = Repo.clone_from(input.repo_url, repo_path, depth=1)
         except Exception as e:
             return IngestResult(
                 components_found=0,
@@ -643,12 +656,17 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
         if dedup_count > 0:
             logger.info("Entity resolution removed %d duplicates", dedup_count)
 
-        # Security scan all components (SEC-01)
+        # Security scan + validation gate for all components (SEC-01, SkillRL)
         scanner = SecurityScanner()
         scanned_components: list[ComponentMetadata] = []
         for comp in components:
             scan_result = scanner.scan_component(comp)
-            # Create new component with security fields populated
+            # Validate component quality (SkillRL)
+            val_result = validate_component(comp)
+            validation_status = "passed" if val_result.passed else "failed"
+            if not val_result.passed:
+                logger.info("Validation issues for %s: %s", comp.id, "; ".join(val_result.issues))
+            # Create new component with security + validation fields populated
             scanned_comp = ComponentMetadata(
                 id=comp.id,
                 name=comp.name,
@@ -673,10 +691,12 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
                 security_risk_score=scan_result.risk_score,
                 security_findings_count=scan_result.finding_count,
                 has_scripts=scan_result.has_scripts,
+                # Validation fields (SkillRL)
+                validation_status=validation_status,
             )
             scanned_components.append(scanned_comp)
         components = scanned_components
-        logger.info("Security scanned %d components", len(components))
+        logger.info("Security scanned + validated %d components", len(components))
 
         # Add to graph store
         for comp in components:
@@ -724,6 +744,11 @@ async def ingest_repo(input: IngestInput) -> IngestResult:
             except Exception as e:
                 errors.append(f"Failed to index {comp.id}: {e}")
                 logger.exception("Failed to index component %s", comp.id)
+
+        # Auto-populate graph edges (SkillRL graph enrichment)
+        enrichment_count = enrich_graph_edges(components, graph_store)
+        if enrichment_count > 0:
+            logger.info("Graph enrichment added %d edges", enrichment_count)
 
         # Persist all stores after indexing
         metadata_store.save()
@@ -1342,32 +1367,13 @@ async def backfill_security_scans(input: BackfillSecurityInput) -> BackfillSecur
             # Scan component
             result = scanner.scan_component(component)
 
-            # Create updated component with security fields
-            updated = ComponentMetadata(
-                id=component.id,
-                name=component.name,
-                component_type=component.component_type,
-                description=component.description,
-                tags=list(component.tags),
-                author=component.author,
-                version=component.version,
-                last_updated=component.last_updated,
-                commit_count=component.commit_count,
-                commit_frequency_30d=component.commit_frequency_30d,
-                raw_content=component.raw_content,
-                parameters=dict(component.parameters),
-                dependencies=list(component.dependencies),
-                tools=list(component.tools),
-                source_repo=component.source_repo,
-                source_path=component.source_path,
-                category=component.category,
-                install_url=component.install_url,
-                # Security fields
-                security_risk_level=result.risk_level.value,
-                security_risk_score=result.risk_score,
-                security_findings_count=result.finding_count,
-                has_scripts=result.has_scripts,
-            )
+            # Update component with security fields (preserving existing fields)
+            updated = component.model_copy(update={
+                "security_risk_level": result.risk_level.value,
+                "security_risk_score": result.risk_score,
+                "security_findings_count": result.finding_count,
+                "has_scripts": result.has_scripts,
+            })
             metadata_store.add(updated)
             scanned += 1
 
@@ -1493,6 +1499,42 @@ async def security_scan_llm(input: LLMSecurityScanInput) -> LLMSecurityScanResul
         true_positive_count=llm_result.true_positive_count,
         context_dependent_count=llm_result.context_dependent_count,
     )
+
+
+# ---------------------------------------------------------------------------
+# Capability gap and deprecation tools (SkillRL)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def get_capability_gaps(min_occurrences: int = 3) -> dict[str, object]:
+    """Get frequently occurring capability gaps that might need new skills."""
+    await _ensure_stores_loaded()
+    assert _gap_tracker is not None
+    return {"gaps": _gap_tracker.get_frequent_gaps(min_occurrences)}
+
+
+@mcp.tool
+async def deprecate_component(component_id: str, reason: str) -> dict[str, str]:
+    """Mark a component as deprecated with a reason."""
+    await _ensure_stores_loaded()
+    assert _metadata_store is not None
+    assert _outcome_tracker is not None
+
+    comp = _metadata_store.get(component_id)
+    if not comp:
+        return {"error": f"Component {component_id} not found"}
+
+    updated = comp.model_copy(update={
+        "deprecated_at": datetime.now(tz=UTC),
+        "deprecation_reason": reason,
+    })
+    _metadata_store.add(updated)  # overwrites
+    _outcome_tracker.record_outcome(component_id, OutcomeType.DEPRECATED, context=reason)
+    _metadata_store.save()
+    _outcome_tracker.save(str(_OUTCOME_TRACKER_PATH))
+
+    return {"status": "deprecated", "component_id": component_id, "reason": reason}
 
 
 def main() -> None:

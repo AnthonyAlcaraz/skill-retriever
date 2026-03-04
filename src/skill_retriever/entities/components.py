@@ -60,6 +60,13 @@ class ComponentMetadata(BaseModel):
     security_findings_count: int = 0
     has_scripts: bool = False
 
+    # SkillRL-inspired fields
+    deprecated_at: datetime | None = None
+    deprecation_reason: str | None = None
+    validation_status: str = "unvalidated"  # unvalidated, passed, failed
+    provenance: str | None = None  # e.g. "auto-generated from gap:missing-auth-skill"
+    quality_score: float = 0.0  # 0-1, computed from outcomes
+
     @field_validator("id", mode="before")
     @classmethod
     def normalize_id(cls, v: str) -> str:

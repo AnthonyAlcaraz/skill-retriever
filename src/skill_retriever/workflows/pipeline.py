@@ -33,7 +33,10 @@ from skill_retriever.workflows.models import ConflictInfo, PipelineResult
 if TYPE_CHECKING:
     from skill_retriever.entities.components import ComponentType
     from skill_retriever.memory.component_memory import ComponentMemory
+    from skill_retriever.memory.gap_tracker import GapTracker
     from skill_retriever.memory.graph_store import GraphStore
+    from skill_retriever.memory.metadata_store import MetadataStore
+    from skill_retriever.memory.outcome_tracker import OutcomeTracker
     from skill_retriever.memory.vector_store import FAISSVectorStore
 
 
@@ -69,6 +72,9 @@ class RetrievalPipeline:
         graph_store: GraphStore,
         vector_store: FAISSVectorStore,
         component_memory: ComponentMemory | None = None,
+        gap_tracker: GapTracker | None = None,
+        outcome_tracker: OutcomeTracker | None = None,
+        metadata_store: MetadataStore | None = None,
         token_budget: int = DEFAULT_TOKEN_BUDGET,
         cache_size: int = DEFAULT_CACHE_SIZE,
     ) -> None:
@@ -78,12 +84,18 @@ class RetrievalPipeline:
             graph_store: Graph store for PPR and component lookup.
             vector_store: FAISS vector store for semantic search.
             component_memory: Optional component memory for usage-based ranking (LRNG-04).
+            gap_tracker: Optional gap tracker for capability gap detection.
+            outcome_tracker: Optional outcome tracker for success rate scoring (SkillRL).
+            metadata_store: Optional metadata store for deprecation penalty (SkillRL).
             token_budget: Maximum tokens for context assembly.
             cache_size: LRU cache size for query results.
         """
         self._graph_store = graph_store
         self._vector_store = vector_store
         self._component_memory = component_memory
+        self._gap_tracker = gap_tracker
+        self._outcome_tracker = outcome_tracker
+        self._metadata_store = metadata_store
         self._token_budget = token_budget
         self._cache_size = cache_size
 
@@ -178,7 +190,7 @@ class RetrievalPipeline:
 
             graph_results = ppr_results
 
-        # Stage 4: Score fusion with usage-based boosting (LRNG-04)
+        # Stage 4: Score fusion with usage-based boosting (LRNG-04) + quality adjustments (SkillRL)
         fused_results = fuse_retrieval_results(
             vector_results,
             graph_results,
@@ -187,7 +199,15 @@ class RetrievalPipeline:
             component_type=component_type,
             top_k=top_k,
             external_ranked=external_ranked,
+            outcome_tracker=self._outcome_tracker,
+            metadata_store=self._metadata_store,
         )
+
+        # Track capability gaps when results are poor
+        if self._gap_tracker is not None:
+            top_score = fused_results[0].score if fused_results else 0.0
+            if len(fused_results) == 0 or top_score < 0.3:
+                self._gap_tracker.record_gap(query, top_score, len(fused_results))
 
         # Stage 5a: Resolve transitive dependencies BEFORE context assembly
         fused_ids = [comp.component_id for comp in fused_results]

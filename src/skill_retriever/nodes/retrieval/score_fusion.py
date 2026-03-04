@@ -10,6 +10,8 @@ if TYPE_CHECKING:
     from skill_retriever.entities.components import ComponentType
     from skill_retriever.memory.component_memory import ComponentMemory
     from skill_retriever.memory.graph_store import GraphStore
+    from skill_retriever.memory.metadata_store import MetadataStore
+    from skill_retriever.memory.outcome_tracker import OutcomeTracker
 
 RRF_K = 60  # Empirically validated default from Elasticsearch/Milvus
 
@@ -86,6 +88,50 @@ def _apply_usage_boost(
     return sorted(boosted, key=lambda x: x[1], reverse=True)
 
 
+def _apply_quality_adjustments(
+    fused_scores: list[tuple[str, float]],
+    outcome_tracker: OutcomeTracker | None,
+    metadata_store: MetadataStore | None,
+) -> list[tuple[str, float]]:
+    """Apply success rate and deprecation adjustments to fused scores.
+
+    - Success rate multiplier: score *= 0.7 + 0.3 * success_rate
+    - Deprecation penalty: score *= 0.1 if deprecated_at is set
+
+    Args:
+        fused_scores: List of (component_id, score) tuples.
+        outcome_tracker: Outcome tracker for success rates (may be None).
+        metadata_store: Metadata store for deprecation status (may be None).
+
+    Returns:
+        List of (component_id, adjusted_score) tuples, re-sorted by score.
+    """
+    if outcome_tracker is None and metadata_store is None:
+        return fused_scores
+
+    adjusted: list[tuple[str, float]] = []
+    for item_id, score in fused_scores:
+        multiplier = 1.0
+
+        # Success rate multiplier (SkillRL)
+        if outcome_tracker is not None:
+            stats = outcome_tracker.outcomes.get(item_id)
+            if stats is not None:
+                total = stats.install_successes + stats.install_failures
+                if total > 0:
+                    multiplier *= 0.7 + 0.3 * stats.success_rate
+
+        # Deprecation penalty (SkillRL)
+        if metadata_store is not None:
+            meta = metadata_store.get(item_id)
+            if meta is not None and meta.deprecated_at is not None:
+                multiplier *= 0.1
+
+        adjusted.append((item_id, score * multiplier))
+
+    return sorted(adjusted, key=lambda x: x[1], reverse=True)
+
+
 def fuse_retrieval_results(
     vector_results: list[RankedComponent],
     graph_results: dict[str, float],
@@ -94,11 +140,14 @@ def fuse_retrieval_results(
     component_type: ComponentType | None = None,
     top_k: int = 10,
     external_ranked: list[str] | None = None,
+    outcome_tracker: OutcomeTracker | None = None,
+    metadata_store: MetadataStore | None = None,
 ) -> list[RankedComponent]:
     """Fuse vector, graph, and external retrieval results using RRF with usage boosting.
 
     Type filter applied AFTER fusion (not during retrieval) per research.
     Usage-based boosting applied when component_memory is provided (LRNG-04).
+    Quality adjustments (success rate, deprecation) applied when trackers provided (SkillRL).
 
     Args:
         vector_results: Results from vector search.
@@ -108,6 +157,8 @@ def fuse_retrieval_results(
         component_type: Optional type filter.
         top_k: Maximum results to return.
         external_ranked: Optional ranked list from external API (skills.sh).
+        outcome_tracker: Optional outcome tracker for success rate adjustments.
+        metadata_store: Optional metadata store for deprecation penalty.
 
     Returns:
         List of RankedComponent with fused and boosted scores.
@@ -131,6 +182,9 @@ def fuse_retrieval_results(
 
     # Apply usage-based boosting (LRNG-04)
     fused = _apply_usage_boost(fused, component_memory)
+
+    # Apply quality adjustments: success rate + deprecation (SkillRL)
+    fused = _apply_quality_adjustments(fused, outcome_tracker, metadata_store)
 
     # Apply type filter AFTER fusion and boosting
     results: list[RankedComponent] = []
