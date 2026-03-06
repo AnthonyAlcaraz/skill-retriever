@@ -40,6 +40,7 @@ from skill_retriever.security import (
     RiskLevel,
     SecurityScanner,
 )
+from skill_retriever.eval import LLMSkillJudge
 from skill_retriever.sync.auto_heal import AutoHealer
 from skill_retriever.sync.config import SYNC_CONFIG
 from skill_retriever.sync.manager import SyncManager
@@ -95,6 +96,10 @@ from skill_retriever.mcp.schemas import (
     SyncStatusResult,
     TrackedRepo,
     UnregisterRepoInput,
+    EvalComponentInput,
+    EvalBatchInput,
+    EvalComponentResult,
+    EvalBatchResult,
 )
 
 if TYPE_CHECKING:
@@ -386,6 +391,11 @@ async def search_components(input: SearchInput) -> SearchResult:
         # Record recommendation for usage tracking (LRNG-03)
         component_memory.record_recommendation(comp.component_id)
 
+        # Get eval score from metadata (EVAL-01)
+        eval_score = None
+        if metadata and metadata.quality_score > 0:
+            eval_score = metadata.quality_score
+
         recommendations.append(
             ComponentRecommendation(
                 id=comp.component_id,
@@ -396,6 +406,7 @@ async def search_components(input: SearchInput) -> SearchResult:
                 token_cost=token_cost,
                 health=health,
                 security=security,
+                eval_score=eval_score,
             )
         )
 
@@ -1535,6 +1546,166 @@ async def deprecate_component(component_id: str, reason: str) -> dict[str, str]:
     _outcome_tracker.save(str(_OUTCOME_TRACKER_PATH))
 
     return {"status": "deprecated", "component_id": component_id, "reason": reason}
+
+
+# ---------------------------------------------------------------------------
+# Eval tools (EVAL-01)
+# ---------------------------------------------------------------------------
+
+
+@mcp.tool
+async def eval_component(input: EvalComponentInput) -> EvalComponentResult:
+    """Evaluate a component's quality using LLM-as-judge."""
+    metadata_store = await get_metadata_store()
+    meta = metadata_store.get(input.component_id)
+
+    if meta is None:
+        return EvalComponentResult(
+            component_id=input.component_id,
+            overall_score=0.0,
+            clarity=0.0,
+            correctness=0.0,
+            specificity=0.0,
+            completeness=0.0,
+            purpose_alignment=0.0,
+            reasoning="Component not found",
+            eval_model="",
+            llm_available=False,
+        )
+
+    judge = LLMSkillJudge()
+
+    if not judge.is_available:
+        return EvalComponentResult(
+            component_id=input.component_id,
+            overall_score=0.0,
+            clarity=0.0,
+            correctness=0.0,
+            specificity=0.0,
+            completeness=0.0,
+            purpose_alignment=0.0,
+            reasoning="LLM unavailable (ANTHROPIC_API_KEY not set)",
+            eval_model="",
+            llm_available=False,
+        )
+
+    result = await judge.evaluate(meta)
+
+    if result is None:
+        return EvalComponentResult(
+            component_id=input.component_id,
+            overall_score=0.0,
+            clarity=0.0,
+            correctness=0.0,
+            specificity=0.0,
+            completeness=0.0,
+            purpose_alignment=0.0,
+            reasoning="LLM evaluation failed",
+            eval_model=judge.model,
+            llm_available=True,
+        )
+
+    # Update metadata with eval score
+    updated = meta.model_copy(update={
+        "quality_score": result.overall_score,
+        "eval_date": datetime.now(tz=UTC),
+    })
+    metadata_store.add(updated)
+    metadata_store.save()
+
+    return EvalComponentResult(
+        component_id=result.component_id,
+        overall_score=result.overall_score,
+        clarity=result.clarity,
+        correctness=result.correctness,
+        specificity=result.specificity,
+        completeness=result.completeness,
+        purpose_alignment=result.purpose_alignment,
+        reasoning=result.reasoning,
+        eval_model=result.eval_model,
+        llm_available=True,
+    )
+
+
+@mcp.tool
+async def eval_batch(input: EvalBatchInput) -> EvalBatchResult:
+    """Batch-evaluate component quality using LLM-as-judge."""
+    metadata_store = await get_metadata_store()
+    judge = LLMSkillJudge()
+
+    if not judge.is_available:
+        return EvalBatchResult(
+            total_components=len(metadata_store),
+            evaluated_count=0,
+            skipped_count=0,
+            avg_score=0.0,
+            low_score_components=[],
+            errors=["LLM unavailable (ANTHROPIC_API_KEY not set)"],
+        )
+
+    all_components = list(metadata_store._cache.items())
+    total = len(all_components)
+    evaluated = 0
+    skipped = 0
+    errors: list[str] = []
+    scores: list[float] = []
+    low_score: list[str] = []
+
+    for comp_id, meta in all_components:
+        if evaluated >= input.batch_size:
+            break
+
+        # Skip already-evaluated unless force_reeval or stale
+        if meta.quality_score > 0 and not input.force_reeval:
+            if meta.eval_date is not None:
+                age_days = (datetime.now(tz=UTC) - meta.eval_date).days
+                if age_days < input.min_age_days:
+                    skipped += 1
+                    continue
+            else:
+                skipped += 1
+                continue
+
+        try:
+            result = await judge.evaluate(meta)
+            if result is None:
+                errors.append(f"Eval failed for {comp_id}")
+                continue
+
+            # Update metadata
+            updated = meta.model_copy(update={
+                "quality_score": result.overall_score,
+                "eval_date": datetime.now(tz=UTC),
+            })
+            metadata_store.add(updated)
+            evaluated += 1
+            scores.append(result.overall_score)
+
+            if result.overall_score < 0.3:
+                low_score.append(comp_id)
+
+            # Save every 10 evaluations
+            if evaluated % 10 == 0:
+                metadata_store.save()
+                logger.info("Eval batch progress: %d/%d evaluated", evaluated, input.batch_size)
+
+        except Exception as e:
+            errors.append(f"Error evaluating {comp_id}: {e}")
+            logger.exception("Failed to evaluate component %s", comp_id)
+
+    # Final save
+    metadata_store.save()
+
+    avg_score = sum(scores) / len(scores) if scores else 0.0
+
+    return EvalBatchResult(
+        total_components=total,
+        evaluated_count=evaluated,
+        skipped_count=skipped,
+        avg_score=round(avg_score, 3),
+        low_score_components=low_score,
+        errors=errors[:20],
+    )
 
 
 def main() -> None:

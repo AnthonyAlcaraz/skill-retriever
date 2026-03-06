@@ -93,9 +93,10 @@ def _apply_quality_adjustments(
     outcome_tracker: OutcomeTracker | None,
     metadata_store: MetadataStore | None,
 ) -> list[tuple[str, float]]:
-    """Apply success rate and deprecation adjustments to fused scores.
+    """Apply success rate, eval score, and deprecation adjustments to fused scores.
 
     - Success rate multiplier: score *= 0.7 + 0.3 * success_rate
+    - Eval score boost: score *= 0.7 + 0.6 * quality_score (range 0.7-1.3)
     - Deprecation penalty: score *= 0.1 if deprecated_at is set
 
     Args:
@@ -121,11 +122,16 @@ def _apply_quality_adjustments(
                 if total > 0:
                     multiplier *= 0.7 + 0.3 * stats.success_rate
 
-        # Deprecation penalty (SkillRL)
+        # Eval score boost + deprecation penalty (EVAL-01, SkillRL)
         if metadata_store is not None:
             meta = metadata_store.get(item_id)
-            if meta is not None and meta.deprecated_at is not None:
-                multiplier *= 0.1
+            if meta is not None:
+                # Eval score boost: range 0.7 (score=0) to 1.3 (score=1)
+                if meta.quality_score > 0:
+                    multiplier *= 0.7 + 0.6 * meta.quality_score
+                # Deprecation penalty
+                if meta.deprecated_at is not None:
+                    multiplier *= 0.1
 
         adjusted.append((item_id, score * multiplier))
 

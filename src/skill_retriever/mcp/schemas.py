@@ -83,6 +83,7 @@ class ComponentRecommendation(BaseModel):
     token_cost: int
     health: HealthStatus | None = Field(default=None, description="Component health status")
     security: SecurityStatus | None = Field(default=None, description="Security scan results")
+    eval_score: float | None = Field(default=None, description="LLM-as-judge quality score (0-1)")
 
 
 class SearchResult(BaseModel):
@@ -460,3 +461,47 @@ class LLMSecurityScanResult(BaseModel):
     false_positive_count: int = 0
     true_positive_count: int = 0
     context_dependent_count: int = 0
+
+# ---------------------------------------------------------------------------
+# Eval models (EVAL-01)
+# ---------------------------------------------------------------------------
+
+
+class EvalComponentInput(BaseModel):
+    """Input for eval_component tool."""
+
+    component_id: str = Field(description="Component ID to evaluate")
+
+
+class EvalBatchInput(BaseModel):
+    """Input for eval_batch tool."""
+
+    batch_size: int = Field(default=50, description="Components per batch")
+    force_reeval: bool = Field(default=False, description="Re-evaluate scored components")
+    min_age_days: int = Field(default=30, description="Re-eval if older than N days")
+
+
+class EvalComponentResult(BaseModel):
+    """Result of single component evaluation."""
+
+    component_id: str
+    overall_score: float
+    clarity: float
+    correctness: float
+    specificity: float
+    completeness: float
+    purpose_alignment: float
+    reasoning: str
+    eval_model: str
+    llm_available: bool = Field(description="Whether LLM evaluation was performed")
+
+
+class EvalBatchResult(BaseModel):
+    """Result of batch evaluation."""
+
+    total_components: int
+    evaluated_count: int
+    skipped_count: int = Field(description="Already evaluated (not force_reeval)")
+    avg_score: float
+    low_score_components: list[str] = Field(description="Components scoring below 0.3")
+    errors: list[str] = Field(default_factory=list)

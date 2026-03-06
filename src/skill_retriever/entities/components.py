@@ -66,6 +66,7 @@ class ComponentMetadata(BaseModel):
     validation_status: str = "unvalidated"  # unvalidated, passed, failed
     provenance: str | None = None  # e.g. "auto-generated from gap:missing-auth-skill"
     quality_score: float = 0.0  # 0-1, computed from outcomes
+    eval_date: datetime | None = None  # When quality_score was last computed by LLM judge
 
     @field_validator("id", mode="before")
     @classmethod
